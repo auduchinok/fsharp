@@ -894,6 +894,12 @@ type FSharpEntity(cenv: SymbolEnv, entity:EntityRef) =
         | _ ->
             None
 
+    member x.IsOptionalAttribute =
+        isResolved() &&
+        match entity.TypeAbbrev with
+        | Some (TType.TType_app(tref, _)) when tref.Stamp = cenv.g.attrib_OptionalArgumentAttribute.TyconRef.Stamp -> true
+        | _ -> false
+
     override x.Equals(other: obj) =
         box x === other ||
         match other with
