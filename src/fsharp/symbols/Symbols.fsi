@@ -199,6 +199,11 @@ type FSharpEntity =
     /// Get the fully qualified name of the type or module
     member QualifiedName: string 
 
+    member QualifiedName: string
+
+    /// Get the fully qualified name of the type or module without strong assembly name
+    member QualifiedBaseName: string
+
     /// Get the full name of the type or module
     member FullName: string 
 
@@ -363,6 +368,8 @@ type FSharpEntity =
 
     /// Get the source text of the entity's signature to be used as metadata.
     member TryGetMetadataText: unit -> ISourceText option
+
+    member IsOptionalAttribute: bool
 
 /// Represents a delegate signature in an F# symbol
 [<Class>] 
@@ -832,6 +839,8 @@ type FSharpMemberOrFunctionOrValue =
     /// Indicates if this is a setter method for a property, or a use of a property in setter mode
     member IsPropertySetterMethod: bool 
 
+    member AccessorProperty: FSharpMemberOrFunctionOrValue option
+
     /// Indicates if this is an add method for an event
     member IsEventAddMethod: bool 
 
@@ -901,6 +910,8 @@ type FSharpMemberOrFunctionOrValue =
     /// Get the accessibility information for the member, function or value
     override Accessibility: FSharpAccessibility
 
+    member IsRefCell : bool
+
     /// Indicated if this is a value compiled to a method
     member IsValCompiledAsMethod: bool
 
@@ -959,6 +970,9 @@ type FSharpParameter =
     /// Indicate this is an optional argument
     member IsOptionalArg: bool
 
+    member IsCliOptional: bool
+    member IsParamArray: bool
+    member IsOut: bool
 
 /// A subtype of FSharpSymbol that represents a single case within an active pattern
 [<Class>]
@@ -1068,9 +1082,16 @@ type FSharpType =
     /// if it is an instantiation of a generic type.
     member AllInterfaces: IList<FSharpType>  
 
+    member IsUnit: bool
+    member IsNativePtr: bool
+
     /// Get the base type, if any, taking into account the instantiation of this type
     /// if it is an instantiation of a generic type.
     member BaseType: FSharpType option
+
+     member StrippedType: FSharpType // todo: in case of nativeptr cals real compiled type instead
+
+     member QualifiedBaseName: string
 
     /// Adjust the type by removing any occurrences of type inference variables, replacing them
     /// systematically with lower-case type inference variables such as <c>'a</c>.

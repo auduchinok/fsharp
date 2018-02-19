@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
+﻿// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
 namespace rec FSharp.Compiler.Symbols
 
@@ -437,6 +437,18 @@ type FSharpEntity(cenv: SymbolEnv, entity:EntityRef) =
         match entity.CompiledRepresentation with 
         | CompiledTypeRepr.ILAsmNamed(tref, _, _) -> tref.QualifiedName
         | CompiledTypeRepr.ILAsmOpen _ -> fail()
+        
+    member x.QualifiedBaseName = 
+         checkIsResolved()
+         let fail() = invalidOp (sprintf "the type '%s' does not have a qualified name" x.LogicalName)
+ #if !NO_EXTENSIONTYPING
+         if entity.IsTypeAbbrev || entity.IsProvidedErasedTycon || entity.IsNamespace then fail()
+ #else
+         if entity.IsTypeAbbrev || entity.IsNamespace then fail()
+ #endif
+         match entity.CompiledRepresentation with 
+         | CompiledTypeRepr.ILAsmNamed(tref, _, _) -> tref.BasicQualifiedName
+         | CompiledTypeRepr.ILAsmOpen _ -> fail()
         
     member x.FullName = 
         checkIsResolved()
@@ -901,6 +913,12 @@ type FSharpEntity(cenv: SymbolEnv, entity:EntityRef) =
             |> Some
         | _ ->
             None
+
+    member x.IsOptionalAttribute =
+        isResolved() &&
+        match entity.TypeAbbrev with
+        | Some (TType.TType_app(tref, _)) when tref.Stamp = cenv.g.attrib_OptionalArgumentAttribute.TyconRef.Stamp -> true
+        | _ -> false
 
     override x.Equals(other: obj) =
         box x === other ||
@@ -1806,6 +1824,18 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
             | _ -> None
         | _ -> None
 
+    member __.AccessorProperty =
+        let makeProp p vref =
+            let pinfo = FSProp(cenv.g, p, Some vref, None)
+            FSharpMemberOrFunctionOrValue(cenv, P pinfo, Item.Property (pinfo.PropertyName, [pinfo]))
+        if isUnresolved() then None else 
+        match d with
+        | M (FSMeth (_, p, vref, _)) when vref.IsPropertyGetterMethod || vref.IsPropertySetterMethod ->
+            Some (makeProp p vref)
+        | V vref when vref.IsPropertyGetterMethod || vref.IsPropertySetterMethod ->
+            vref.MemberInfo |> Option.map (fun memInfo -> makeProp (generalizedTyconRef memInfo.ApparentEnclosingEntity) vref)
+        | _ -> None
+
     member _.IsEventAddMethod = 
         if isUnresolved() then false else 
         match d with 
@@ -2185,6 +2215,12 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
 
     member x.Data = d
 
+    member x.IsRefCell =
+        not x.IsMember && not x.IsConstructorThisValue &&
+        match d with
+        | V valRef -> (isRefCellTy cenv.g valRef.Type)
+        | _ -> false
+
     member x.IsValCompiledAsMethod =
         match d with
         | V valRef -> IlxGen.IsFSharpValCompiledAsMethod cenv.g valRef.Deref
@@ -2408,9 +2444,28 @@ type FSharpType(cenv, ty:TType) =
              yield FSharpType(cenv, ty) ]
         |> makeReadOnlyCollection
 
+    member x.IsUnit = typeEquiv cenv.g ty cenv.g.unit_ty 
+
+    member x.IsNativePtr =
+        try typeEquiv cenv.g ty cenv.g.nativeint_ty
+        with _ -> false
+
     member _.BaseType = 
         GetSuperTypeOfType cenv.g cenv.amap range0 ty
         |> Option.map (fun ty -> FSharpType(cenv, ty)) 
+
+    member x.StrippedType =
+        FSharpType(cenv, stripTyEqnsWrtErasure EraseAll cenv.g ty) 
+
+    member x.QualifiedBaseName =
+        let fail () = invalidOp (sprintf "the type '%O' does not have a qualified name" x)
+        protect <| fun () ->
+            match stripTyparEqns ty with 
+            | TType_app (tcref, _) ->
+                match tcref.CompiledRepresentation with 
+                | CompiledTypeRepr.ILAsmNamed(tref, _, _) -> tref.BasicQualifiedName
+                | CompiledTypeRepr.ILAsmOpen _ -> fail() 
+            | _ -> invalidOp "not a stripped type"
 
     member _.Instantiate(instantiation:(FSharpGenericParameter * FSharpType) list) = 
         let typI = instType (instantiation |> List.map (fun (tyv, ty) -> tyv.TypeParameter, ty.Type)) ty
@@ -2650,7 +2705,12 @@ type FSharpParameter(cenv, paramTy: TType, topArgInfo: ArgReprInfo, ownerOpt, ow
     member _.IsOutArg = isOutArg
 
     member _.IsOptionalArg = isOptionalArg
-    
+
+    // todo: cover IL attrs? use different name? (we need it for symbols defined in F# source only)
+    member _.IsCliOptional = HasFSharpAttributeOpt cenv.g cenv.g.attrib_OptionalAttribute topArgInfo.Attribs
+    member _.IsParamArray = HasFSharpAttribute cenv.g cenv.g.attrib_ParamArrayAttribute topArgInfo.Attribs
+    member _.IsOut = HasFSharpAttribute cenv.g cenv.g.attrib_OutAttribute topArgInfo.Attribs 
+
     member _.IsWitnessArg = isWitnessArg
     
     member private x.ValReprInfo = topArgInfo
