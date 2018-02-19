@@ -359,6 +359,8 @@ type FSharpEntity =
     /// Safe version of `GetMembersFunctionsAndValues`.
     member TryGetMembersFunctionsAndValues: unit -> IList<FSharpMemberOrFunctionOrValue>
 
+    member IsOptionalAttribute: bool
+
 /// Represents a delegate signature in an F# symbol
 [<Class>] 
 type FSharpDelegateSignature =
