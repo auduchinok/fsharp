@@ -970,6 +970,9 @@ type FSharpParameter =
     /// Indicate this is an optional argument
     member IsOptionalArg: bool
 
+    member IsCliOptional: bool
+    member IsParamArray: bool
+    member IsOut: bool
 
 /// A subtype of FSharpSymbol that represents a single case within an active pattern
 [<Class>]
