@@ -282,7 +282,7 @@ type TypeNameResolutionInfo =
   static member ResolveToTypeRefs : TypeNameResolutionStaticArgsInfo -> TypeNameResolutionInfo
 
 /// Represents the kind of the occurrence when reporting a name in name resolution
-[<RequireQualifiedAccess; Struct>]
+[<RequireQualifiedAccess>]
 type internal ItemOccurence = 
     | Binding 
     | Use 
@@ -363,7 +363,7 @@ type internal TcSymbolUses =
     member GetUsesOfSymbol : Item -> TcSymbolUseData[]
 
     /// All the uses of all items within the file
-    member AllUsesOfSymbols : TcSymbolUseData[][]
+    member AllUsesOfSymbols : TcSymbolUseData[]
 
     /// Get the locations of all the printf format specifiers in the file
     member GetFormatSpecifierLocationsAndArity : unit -> (range * int)[]

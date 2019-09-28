@@ -1861,8 +1861,7 @@ type FSharpCheckFileResults
             (fun () -> [| |])
             (fun scope ->
                 let cenv = scope.SymbolEnv
-                [| for symbolUseChunk in scope.ScopeSymbolUses.AllUsesOfSymbols do
-                    for symbolUse in symbolUseChunk do
+                [| for symbolUse in scope.ScopeSymbolUses.AllUsesOfSymbols do
                     if symbolUse.ItemOccurence <> ItemOccurence.RelatedText then
                         let symbol = FSharpSymbol.Create(cenv, symbolUse.Item)
                         yield FSharpSymbolUse(scope.TcGlobals, symbolUse.DisplayEnv, symbol, symbolUse.ItemOccurence, symbolUse.Range) |])
@@ -2087,8 +2086,7 @@ type FSharpCheckProjectResults
         let cenv = SymbolEnv(tcGlobals, thisCcu, Some ccuSig, tcImports)
 
         [| for r in tcSymbolUses do
-            for symbolUseChunk in r.AllUsesOfSymbols do
-                for symbolUse in symbolUseChunk do
+            for symbolUse in r.AllUsesOfSymbols do
                     if symbolUse.ItemOccurence <> ItemOccurence.RelatedText then
                       let symbol = FSharpSymbol.Create(cenv, symbolUse.Item)
                       yield FSharpSymbolUse(tcGlobals, symbolUse.DisplayEnv, symbol, symbolUse.ItemOccurence, symbolUse.Range) |]
