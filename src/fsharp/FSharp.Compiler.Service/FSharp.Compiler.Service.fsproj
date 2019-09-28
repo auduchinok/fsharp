@@ -14,6 +14,10 @@
     <Tailcalls>true</Tailcalls> <!-- .tail annotations always emitted for this binary, even in debug mode -->
     <FsYaccOutputFolder>$(IntermediateOutputPath)$(TargetFramework)\</FsYaccOutputFolder>
     <FsLexOutputFolder>$(IntermediateOutputPath)$(TargetFramework)\</FsLexOutputFolder>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>fcs.snk</AssemblyOriginatorKeyFile>
+    <VersionPrefix>2021.1.0</VersionPrefix>
+    <OtherFlags>--version:$(VersionPrefix)</OtherFlags>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -987,12 +991,8 @@
   </ItemGroup>
 
 
-  <ItemGroup Condition="'$(FSHARPCORE_USE_PACKAGE)' != 'true'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\FSharp.Core\FSharp.Core.fsproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(FSHARPCORE_USE_PACKAGE)' == 'true'">
-    <PackageReference Include="FSharp.Core" Version="$(FSharpCorePreviewPackageVersion)" />
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
