@@ -1,19 +1,15 @@
+#if !NO_EXTENSIONTYPING
+
 // Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
 // Extension typing, validation of extension types, etc.
 
-namespace FSharp.Compiler
-
-#if !NO_EXTENSIONTYPING
-
-module internal ExtensionTyping =
+module FSharp.Compiler.ExtensionTyping
 
     open System
-    open System.IO
     open System.Collections.Generic
     open Microsoft.FSharp.Core.CompilerServices
     open FSharp.Compiler.AbstractIL.IL
-    open FSharp.Compiler.AbstractIL.Internal.Library
     open FSharp.Compiler.Range
 
     type TypeProviderDesignation = TypeProviderDesignation of string
@@ -43,18 +39,6 @@ module internal ExtensionTyping =
         /// The folder for temporary files
         temporaryFolder             : string
       }
-
-    /// Find and instantiate the set of ITypeProvider components for the given assembly reference
-    val GetTypeProvidersOfAssembly : 
-          runtimeAssemblyFilename: string 
-          * ilScopeRefOfRuntimeAssembly:ILScopeRef
-          * designerAssemblyName: string 
-          * ResolutionEnvironment 
-          * bool
-          * isInteractive: bool
-          * systemRuntimeContainsType : (string -> bool)
-          * systemRuntimeAssemblyVersion : System.Version
-          * range -> Tainted<ITypeProvider> list
 
     /// Given an extension type resolver, supply a human-readable name suitable for error messages.
     val DisplayNameOfTypeProvider : Tainted<Microsoft.FSharp.Core.CompilerServices.ITypeProvider> * range -> string
@@ -369,5 +353,28 @@ module internal ExtensionTyping =
     /// Check if this is a direct reference to a non-embedded generated type. This is not permitted at any name resolution.
     /// We check by seeing if the type is absent from the remapping context.
     val IsGeneratedTypeDirectReference         : Tainted<ProvidedType> * range -> bool
+    
+    [<AutoOpen>]
+    module Shim =
+        
+        type IExtensionTypingProvider =
+            
+             /// Find and instantiate the set of ITypeProvider components for the given assembly reference
+            abstract InstantiateTypeProvidersOfAssembly : 
+              runtimeAssemblyFilename: string 
+              * ilScopeRefOfRuntimeAssembly:ILScopeRef
+              * designerAssemblyName: string 
+              * ResolutionEnvironment 
+              * bool
+              * isInteractive: bool
+              * systemRuntimeContainsType : (string -> bool)
+              * systemRuntimeAssemblyVersion : System.Version
+              * range -> Tainted<ITypeProvider> list
+
+        [<Sealed>]
+        type DefaultExtensionTypingProvider =
+            interface IExtensionTypingProvider
+
+        val mutable ExtensionTypingProvider: IExtensionTypingProvider
 
 #endif

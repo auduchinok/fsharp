@@ -1,0 +1,516 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ContentModelStore">
+    <e p="C:\Users\ber.a\.nuget\Packages\nunit3testadapter\3.11.2\build\net35\nunit.engine.api.dll" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunit3testadapter\3.11.2\build\net35\nunit.engine.dll" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunit3testadapter\3.11.2\build\net35\NUnit3.TestAdapter.dll" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunit3testadapter\3.11.2\build\net35\NUnit3.TestAdapter.pdb" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunit3testadapter\3.11.2\build\netcoreapp1.0\nunit.engine.netstandard.dll" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunit3testadapter\3.11.2\build\netcoreapp1.0\NUnit3.TestAdapter.dll" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunit3testadapter\3.11.2\build\netcoreapp1.0\NUnit3.TestAdapter.pdb" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunitxml.testlogger\2.1.36\build\_common\Microsoft.VisualStudio.TestPlatform.Extension.NUnit.Xml.TestAdapter.dll" t="Include" />
+    <e p="C:\Users\ber.a\.nuget\Packages\nunitxml.testlogger\2.1.36\build\_common\Microsoft.VisualStudio.TestPlatform.Extension.NUnit.Xml.TestLogger.dll" t="Include" />
+    <e p="C:\Users\ber.a\.Rider2019.2\system\extResources" t="IncludeRecursive" />
+    <e p="C:\Users\ber.a\.Rider2019.2\system\resharper-host\local\Transient\ReSharperHost\v192\SolutionCaches\_FSharp.-667796079.00" t="ExcludeRecursive" />
+    <e p="C:\visualfsharp" t="IncludeFlat">
+      <e p="artifacts\bin" t="ExcludeRecursive" />
+      <e p="artifacts\obj" t="ExcludeRecursive">
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.cs.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.de.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.es.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.fr.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.it.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.ja.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.ko.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.pl.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.pt-BR.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.ru.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.tr.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.zh-Hans.resx" t="Include" />
+        <e p="FSharp.Core\Debug\net45\FSharp.Core.xlf\FSCore.zh-Hant.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.cs.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.de.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.es.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.fr.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.it.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.ja.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.ko.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.pl.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.pt-BR.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.ru.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.tr.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.zh-Hans.resx" t="Include" />
+        <e p="FSharp.Core\Debug\netstandard1.6\FSharp.Core.xlf\FSCore.zh-Hant.resx" t="Include" />
+        <e p="Microsoft.FSharp.Compiler\Debug\netcoreapp2.1" t="Include">
+          <e p="Microsoft.FSharp.Compiler.AssemblyInfo.cs" t="Include" />
+        </e>
+      </e>
+      <e p="Compiler" t="Include" />
+      <e p="FSharp.sln" t="IncludeFlat" />
+      <e p="Libraries" t="Include" />
+      <e p="Packages" t="ExcludeRecursive" />
+      <e p="src\absil\bytes.fs" t="Include" />
+      <e p="src\absil\bytes.fsi" t="Include" />
+      <e p="src\absil\il.fs" t="Include" />
+      <e p="src\absil\il.fsi" t="Include" />
+      <e p="src\absil\ilascii.fs" t="Include" />
+      <e p="src\absil\ilascii.fsi" t="Include" />
+      <e p="src\absil\ilbinary.fs" t="Include" />
+      <e p="src\absil\ilbinary.fsi" t="Include" />
+      <e p="src\absil\ildiag.fs" t="Include" />
+      <e p="src\absil\ildiag.fsi" t="Include" />
+      <e p="src\absil\illex.fsl" t="Include" />
+      <e p="src\absil\illib.fs" t="Include" />
+      <e p="src\absil\ilmorph.fs" t="Include" />
+      <e p="src\absil\ilmorph.fsi" t="Include" />
+      <e p="src\absil\ilpars.fsy" t="Include" />
+      <e p="src\absil\ilprint.fs" t="Include" />
+      <e p="src\absil\ilprint.fsi" t="Include" />
+      <e p="src\absil\ilread.fs" t="Include" />
+      <e p="src\absil\ilread.fsi" t="Include" />
+      <e p="src\absil\ilreflect.fs" t="Include" />
+      <e p="src\absil\ilsign.fs" t="Include" />
+      <e p="src\absil\ilsupp.fs" t="Include" />
+      <e p="src\absil\ilsupp.fsi" t="Include" />
+      <e p="src\absil\ilwrite.fs" t="Include" />
+      <e p="src\absil\ilwrite.fsi" t="Include" />
+      <e p="src\absil\ilwritepdb.fs" t="Include" />
+      <e p="src\absil\ilwritepdb.fsi" t="Include" />
+      <e p="src\absil\ilx.fs" t="Include" />
+      <e p="src\absil\ilx.fsi" t="Include" />
+      <e p="src\absil\zmap.fs" t="Include" />
+      <e p="src\absil\zmap.fsi" t="Include" />
+      <e p="src\absil\zset.fs" t="Include" />
+      <e p="src\absil\zset.fsi" t="Include" />
+      <e p="src\fsharp\AccessibilityLogic.fs" t="Include" />
+      <e p="src\fsharp\ast.fs" t="Include" />
+      <e p="src\fsharp\AttributeChecking.fs" t="Include" />
+      <e p="src\fsharp\AugmentWithHashCompare.fs" t="Include" />
+      <e p="src\fsharp\AugmentWithHashCompare.fsi" t="Include" />
+      <e p="src\fsharp\autobox.fs" t="Include" />
+      <e p="src\fsharp\autobox.fsi" t="Include" />
+      <e p="src\fsharp\CheckFormatStrings.fs" t="Include" />
+      <e p="src\fsharp\CheckFormatStrings.fsi" t="Include" />
+      <e p="src\fsharp\CompileOps.fs" t="Include" />
+      <e p="src\fsharp\CompileOps.fsi" t="Include" />
+      <e p="src\fsharp\CompileOptions.fs" t="Include" />
+      <e p="src\fsharp\CompileOptions.fsi" t="Include" />
+      <e p="src\fsharp\CompilerGlobalState.fs" t="Include" />
+      <e p="src\fsharp\ConstraintSolver.fs" t="Include" />
+      <e p="src\fsharp\ConstraintSolver.fsi" t="Include" />
+      <e p="src\fsharp\DetupleArgs.fs" t="Include" />
+      <e p="src\fsharp\DetupleArgs.fsi" t="Include" />
+      <e p="src\fsharp\DotNetFrameworkDependencies.fs" t="Include" />
+      <e p="src\fsharp\ErrorLogger.fs" t="Include" />
+      <e p="src\fsharp\ErrorResolutionHints.fs" t="Include" />
+      <e p="src\fsharp\ExtensionTyping.fs" t="Include" />
+      <e p="src\fsharp\ExtensionTyping.fsi" t="Include" />
+      <e p="src\fsharp\FindUnsolved.fs" t="Include" />
+      <e p="src\fsharp\FindUnsolved.fsi" t="Include" />
+      <e p="src\fsharp\fsc" t="IncludeRecursive">
+        <e p="app.config" t="Include" />
+        <e p="fsc.fsproj" t="IncludeRecursive" />
+      </e>
+      <e p="src\fsharp\fsc.fs" t="Include" />
+      <e p="src\fsharp\fsc.fsi" t="Include" />
+      <e p="src\fsharp\fscmain.fs" t="Include" />
+      <e p="src\fsharp\FSComp.txt" t="Include" />
+      <e p="src\fsharp\FSharp.Build" t="IncludeRecursive">
+        <e p="CreateFSharpManifestResourceName.fs" t="Include" />
+        <e p="FSBuild.txt" t="Include" />
+        <e p="fsc.fs" t="Include" />
+        <e p="FSharp.Build.fsproj" t="IncludeRecursive" />
+        <e p="FSharpCommandLineBuilder.fs" t="Include" />
+        <e p="FSharpEmbedResourceText.fs" t="Include" />
+        <e p="FSharpEmbedResXSource.fs" t="Include" />
+        <e p="fsi.fs" t="Include" />
+        <e p="Microsoft.FSharp.NetSdk.props" t="Include" />
+        <e p="Microsoft.FSharp.NetSdk.targets" t="Include" />
+        <e p="Microsoft.FSharp.Overrides.NetSdk.targets" t="Include" />
+        <e p="Microsoft.FSharp.Targets" t="Include" />
+        <e p="Microsoft.Portable.FSharp.Targets" t="Include" />
+        <e p="WriteCodeFragment.fs" t="Include" />
+      </e>
+      <e p="src\fsharp\FSharp.Compiler.Interactive.Settings" t="IncludeRecursive">
+        <e p="FSharp.Compiler.Interactive.Settings.fsproj" t="IncludeRecursive" />
+      </e>
+      <e p="src\fsharp\FSharp.Compiler.nuget" t="IncludeRecursive">
+        <e p="Directory.Build.props" t="Include" />
+        <e p="Microsoft.FSharp.Compiler.csproj" t="IncludeRecursive" />
+        <e p="Microsoft.FSharp.Compiler.nuspec" t="Include" />
+      </e>
+      <e p="src\fsharp\FSharp.Compiler.Private" t="IncludeRecursive">
+        <e p="absil" t="Include" />
+        <e p="CodeGen" t="Include" />
+        <e p="CompilerLocation" t="Include" />
+        <e p="Driver" t="Include" />
+        <e p="ErrorLogging" t="Include" />
+        <e p="ErrorText" t="Include" />
+        <e p="FSharp.Compiler.Private.fsproj" t="IncludeRecursive" />
+        <e p="illex.fs" t="Include" />
+        <e p="ilpars.fs" t="Include" />
+        <e p="ILXErase" t="Include" />
+        <e p="InteractiveSession" t="Include" />
+        <e p="lex.fs" t="Include" />
+        <e p="LexYaccRuntime" t="Include" />
+        <e p="Logic" t="Include" />
+        <e p="Misc" t="Include" />
+        <e p="Optimize" t="Include" />
+        <e p="pars.fs" t="Include" />
+        <e p="ParserAndUntypedAST" t="Include" />
+        <e p="pplex.fs" t="Include" />
+        <e p="pppars.fs" t="Include" />
+        <e p="PrettyNaming" t="Include" />
+        <e p="ReferenceResolution" t="Include" />
+        <e p="Reflection" t="Include" />
+        <e p="Service" t="Include" />
+        <e p="Symbols" t="Include" />
+        <e p="TypedAST" t="Include" />
+        <e p="Utilities" t="Include" />
+      </e>
+      <e p="src\fsharp\FSharp.Core" t="IncludeRecursive">
+        <e p="array.fs" t="Include" />
+        <e p="array.fsi" t="Include" />
+        <e p="array2.fs" t="Include" />
+        <e p="array2.fsi" t="Include" />
+        <e p="array3.fs" t="Include" />
+        <e p="array3.fsi" t="Include" />
+        <e p="async.fs" t="Include" />
+        <e p="async.fsi" t="Include" />
+        <e p="Collections" t="Include" />
+        <e p="collections.fs" t="Include" />
+        <e p="collections.fsi" t="Include" />
+        <e p="Control" t="Include" />
+        <e p="event.fs" t="Include" />
+        <e p="event.fsi" t="Include" />
+        <e p="EventModule.fs" t="Include" />
+        <e p="eventmodule.fsi" t="Include" />
+        <e p="Extras" t="Include" />
+        <e p="FSCore.resx" t="Include" />
+        <e p="FSharp.Core.fsproj" t="IncludeRecursive" />
+        <e p="fslib-extra-pervasives.fs" t="Include" />
+        <e p="fslib-extra-pervasives.fsi" t="Include" />
+        <e p="Linq.fs" t="Include" />
+        <e p="Linq.fsi" t="Include" />
+        <e p="list.fs" t="Include" />
+        <e p="list.fsi" t="Include" />
+        <e p="local.fs" t="Include" />
+        <e p="local.fsi" t="Include" />
+        <e p="mailbox.fs" t="Include" />
+        <e p="mailbox.fsi" t="Include" />
+        <e p="MailboxProcessor" t="Include" />
+        <e p="map.fs" t="Include" />
+        <e p="map.fsi" t="Include" />
+        <e p="math\n.fs" t="Include" />
+        <e p="math\n.fsi" t="Include" />
+        <e p="math\z.fs" t="Include" />
+        <e p="math\z.fsi" t="Include" />
+        <e p="MutableTuple.fs" t="Include" />
+        <e p="NativeInterop" t="Include" />
+        <e p="nativeptr.fs" t="Include" />
+        <e p="nativeptr.fsi" t="Include" />
+        <e p="Numerics" t="Include" />
+        <e p="observable.fs" t="Include" />
+        <e p="observable.fsi" t="Include" />
+        <e p="option.fs" t="Include" />
+        <e p="option.fsi" t="Include" />
+        <e p="prim-types-prelude.fs" t="Include" />
+        <e p="prim-types-prelude.fsi" t="Include" />
+        <e p="prim-types.fs" t="Include" />
+        <e p="prim-types.fsi" t="Include" />
+        <e p="Primitives" t="Include" />
+        <e p="Printf" t="Include" />
+        <e p="printf.fs" t="Include" />
+        <e p="printf.fsi" t="Include" />
+        <e p="Queries" t="Include" />
+        <e p="Query.fs" t="Include" />
+        <e p="Query.fsi" t="Include" />
+        <e p="QueryExtensions.fs" t="Include" />
+        <e p="Quotations" t="Include" />
+        <e p="quotations.fs" t="Include" />
+        <e p="quotations.fsi" t="Include" />
+        <e p="reflect.fs" t="Include" />
+        <e p="reflect.fsi" t="Include" />
+        <e p="Reflection" t="Include" />
+        <e p="result.fs" t="Include" />
+        <e p="result.fsi" t="Include" />
+        <e p="seq.fs" t="Include" />
+        <e p="seq.fsi" t="Include" />
+        <e p="seqcore.fs" t="Include" />
+        <e p="seqcore.fsi" t="Include" />
+        <e p="set.fs" t="Include" />
+        <e p="set.fsi" t="Include" />
+        <e p="SI.fs" t="Include" />
+        <e p="string.fs" t="Include" />
+        <e p="string.fsi" t="Include" />
+        <e p="Units" t="Include" />
+      </e>
+      <e p="src\fsharp\fsi" t="IncludeRecursive">
+        <e p="app.config" t="Include" />
+        <e p="console.fs" t="Include" />
+        <e p="fsi.fs" t="Include" />
+        <e p="fsi.fsi" t="Include" />
+        <e p="fsi.fsproj" t="IncludeRecursive" />
+        <e p="fsimain.fs" t="Include" />
+        <e p="FSIstrings.txt" t="Include" />
+      </e>
+      <e p="src\fsharp\fsiattrs.fs" t="Include" />
+      <e p="src\fsharp\fsiaux.fs" t="Include" />
+      <e p="src\fsharp\fsiaux.fsi" t="Include" />
+      <e p="src\fsharp\FSStrings.resx" t="Include" />
+      <e p="src\fsharp\IlxGen.fs" t="Include" />
+      <e p="src\fsharp\IlxGen.fsi" t="Include" />
+      <e p="src\fsharp\import.fs" t="Include" />
+      <e p="src\fsharp\import.fsi" t="Include" />
+      <e p="src\fsharp\InfoReader.fs" t="Include" />
+      <e p="src\fsharp\infos.fs" t="Include" />
+      <e p="src\fsharp\InnerLambdasToTopLevelFuncs.fs" t="Include" />
+      <e p="src\fsharp\InnerLambdasToTopLevelFuncs.fsi" t="Include" />
+      <e p="src\fsharp\InternalCollections.fs" t="Include" />
+      <e p="src\fsharp\InternalCollections.fsi" t="Include" />
+      <e p="src\fsharp\layout.fs" t="Include" />
+      <e p="src\fsharp\layout.fsi" t="Include" />
+      <e p="src\fsharp\LegacyHostedCompilerForTesting.fs" t="Include" />
+      <e p="src\fsharp\lex.fsl" t="Include" />
+      <e p="src\fsharp\LexFilter.fs" t="Include" />
+      <e p="src\fsharp\lexhelp.fs" t="Include" />
+      <e p="src\fsharp\lexhelp.fsi" t="Include" />
+      <e p="src\fsharp\lib.fs" t="Include" />
+      <e p="src\fsharp\Logger.fs" t="Include" />
+      <e p="src\fsharp\Logger.fsi" t="Include" />
+      <e p="src\fsharp\LowerCallsAndSeqs.fs" t="Include" />
+      <e p="src\fsharp\LowerCallsAndSeqs.fsi" t="Include" />
+      <e p="src\fsharp\MethodCalls.fs" t="Include" />
+      <e p="src\fsharp\MethodOverrides.fs" t="Include" />
+      <e p="src\fsharp\MSBuildReferenceResolver.fs" t="Include" />
+      <e p="src\fsharp\NameResolution.fs" t="Include" />
+      <e p="src\fsharp\NameResolution.fsi" t="Include" />
+      <e p="src\fsharp\NicePrint.fs" t="Include" />
+      <e p="src\fsharp\Optimizer.fs" t="Include" />
+      <e p="src\fsharp\Optimizer.fsi" t="Include" />
+      <e p="src\fsharp\pars.fsy" t="Include" />
+      <e p="src\fsharp\PatternMatchCompilation.fs" t="Include" />
+      <e p="src\fsharp\PatternMatchCompilation.fsi" t="Include" />
+      <e p="src\fsharp\PostInferenceChecks.fs" t="Include" />
+      <e p="src\fsharp\PostInferenceChecks.fsi" t="Include" />
+      <e p="src\fsharp\pplex.fsl" t="Include" />
+      <e p="src\fsharp\pppars.fsy" t="Include" />
+      <e p="src\fsharp\PrettyNaming.fs" t="Include" />
+      <e p="src\fsharp\QueueList.fs" t="Include" />
+      <e p="src\fsharp\QuotationPickler.fs" t="Include" />
+      <e p="src\fsharp\QuotationPickler.fsi" t="Include" />
+      <e p="src\fsharp\QuotationTranslator.fs" t="Include" />
+      <e p="src\fsharp\QuotationTranslator.fsi" t="Include" />
+      <e p="src\fsharp\range.fs" t="Include" />
+      <e p="src\fsharp\range.fsi" t="Include" />
+      <e p="src\fsharp\rational.fs" t="Include" />
+      <e p="src\fsharp\rational.fsi" t="Include" />
+      <e p="src\fsharp\ReferenceResolver.fs" t="Include" />
+      <e p="src\fsharp\Service\ExternalSymbol.fs" t="Include" />
+      <e p="src\fsharp\Service\ExternalSymbol.fsi" t="Include" />
+      <e p="src\fsharp\Service\IncrementalBuild.fs" t="Include" />
+      <e p="src\fsharp\Service\IncrementalBuild.fsi" t="Include" />
+      <e p="src\fsharp\Service\QuickParse.fs" t="Include" />
+      <e p="src\fsharp\Service\QuickParse.fsi" t="Include" />
+      <e p="src\fsharp\Service\Reactor.fs" t="Include" />
+      <e p="src\fsharp\Service\Reactor.fsi" t="Include" />
+      <e p="src\fsharp\Service\service.fs" t="Include" />
+      <e p="src\fsharp\Service\service.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceAnalysis.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceAnalysis.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceAssemblyContent.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceAssemblyContent.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceConstants.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceDeclarationLists.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceDeclarationLists.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceErrorResolutionHints.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceErrorResolutionHints.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceInterfaceStubGenerator.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceInterfaceStubGenerator.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceLexing.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceLexing.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceNavigation.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceNavigation.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceParamInfoLocations.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceParamInfoLocations.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceParseTreeWalk.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceStructure.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceStructure.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceUntypedParse.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceUntypedParse.fsi" t="Include" />
+      <e p="src\fsharp\Service\ServiceXmlDocParser.fs" t="Include" />
+      <e p="src\fsharp\Service\ServiceXmlDocParser.fsi" t="Include" />
+      <e p="src\fsharp\SignatureConformance.fs" t="Include" />
+      <e p="src\fsharp\SimulatedMSBuildReferenceResolver.fs" t="Include" />
+      <e p="src\fsharp\sr.fs" t="Include" />
+      <e p="src\fsharp\sr.fsi" t="Include" />
+      <e p="src\fsharp\Symbols\Exprs.fs" t="Include" />
+      <e p="src\fsharp\Symbols\Exprs.fsi" t="Include" />
+      <e p="src\fsharp\Symbols\SymbolHelpers.fs" t="Include" />
+      <e p="src\fsharp\Symbols\SymbolHelpers.fsi" t="Include" />
+      <e p="src\fsharp\Symbols\SymbolPatterns.fs" t="Include" />
+      <e p="src\fsharp\Symbols\SymbolPatterns.fsi" t="Include" />
+      <e p="src\fsharp\Symbols\Symbols.fs" t="Include" />
+      <e p="src\fsharp\Symbols\Symbols.fsi" t="Include" />
+      <e p="src\fsharp\tainted.fs" t="Include" />
+      <e p="src\fsharp\tainted.fsi" t="Include" />
+      <e p="src\fsharp\tast.fs" t="Include" />
+      <e p="src\fsharp\TastOps.fs" t="Include" />
+      <e p="src\fsharp\TastOps.fsi" t="Include" />
+      <e p="src\fsharp\TastPickle.fs" t="Include" />
+      <e p="src\fsharp\TastPickle.fsi" t="Include" />
+      <e p="src\fsharp\TcGlobals.fs" t="Include" />
+      <e p="src\fsharp\TypeChecker.fs" t="Include" />
+      <e p="src\fsharp\TypeChecker.fsi" t="Include" />
+      <e p="src\fsharp\TypeRelations.fs" t="Include" />
+      <e p="src\fsharp\UnicodeLexing.fs" t="Include" />
+      <e p="src\fsharp\UnicodeLexing.fsi" t="Include" />
+      <e p="src\ilx\EraseClosures.fs" t="Include" />
+      <e p="src\ilx\EraseClosures.fsi" t="Include" />
+      <e p="src\ilx\EraseUnions.fs" t="Include" />
+      <e p="src\ilx\EraseUnions.fsi" t="Include" />
+      <e p="src\ilx\ilxsettings.fs" t="Include" />
+      <e p="src\scripts\scriptlib.fsx" t="Include" />
+      <e p="src\utils\CompilerLocationUtils.fs" t="Include" />
+      <e p="src\utils\EditDistance.fs" t="Include" />
+      <e p="src\utils\filename.fs" t="Include" />
+      <e p="src\utils\filename.fsi" t="Include" />
+      <e p="src\utils\HashMultiMap.fs" t="Include" />
+      <e p="src\utils\HashMultiMap.fsi" t="Include" />
+      <e p="src\utils\PathMap.fs" t="Include" />
+      <e p="src\utils\PathMap.fsi" t="Include" />
+      <e p="src\utils\prim-lexing.fs" t="Include" />
+      <e p="src\utils\prim-lexing.fsi" t="Include" />
+      <e p="src\utils\prim-parsing.fs" t="Include" />
+      <e p="src\utils\prim-parsing.fsi" t="Include" />
+      <e p="src\utils\reshapedmsbuild.fs" t="Include" />
+      <e p="src\utils\reshapedreflection.fs" t="Include" />
+      <e p="src\utils\ResizeArray.fs" t="Include" />
+      <e p="src\utils\ResizeArray.fsi" t="Include" />
+      <e p="src\utils\sformat.fs" t="Include" />
+      <e p="src\utils\sformat.fsi" t="Include" />
+      <e p="src\utils\TaggedCollections.fs" t="Include" />
+      <e p="src\utils\TaggedCollections.fsi" t="Include" />
+      <e p="src\windows\default.win32manifest" t="Include" />
+      <e p="Tests" t="Include">
+        <e p="fsharp" t="IncludeRecursive">
+          <e p="app.config" t="Include" />
+          <e p="Compiler" t="Include">
+            <e p="CompilerAssert.fs" t="Include" />
+            <e p="ILHelpers.fs" t="Include" />
+            <e p="Language" t="Include">
+              <e p="AnonRecordTests.fs" t="Include" />
+              <e p="SpanOptimizationTests.fs" t="Include" />
+              <e p="SpanTests.fs" t="Include" />
+              <e p="StringConcatOptimizationTests.fs" t="Include" />
+            </e>
+            <e p="SourceTextTests.fs" t="Include" />
+          </e>
+          <e p="FSharpSuite.Tests.fsproj" t="IncludeRecursive" />
+          <e p="packages.config" t="Include" />
+          <e p="single-test.fs" t="Include" />
+          <e p="test-framework.fs" t="Include" />
+          <e p="tests.fs" t="Include" />
+          <e p="TypeProviderTests.fs" t="Include" />
+          <e p="update.base.line.with.actuals.fsx" t="Include" />
+        </e>
+        <e p="FSharp.Build.UnitTests" t="IncludeRecursive">
+          <e p="FSharp.Build.UnitTests.fsproj" t="IncludeRecursive" />
+          <e p="WriteCodeFragmentTests.fs" t="Include" />
+        </e>
+        <e p="FSharp.Compiler.UnitTests" t="IncludeRecursive">
+          <e p="CompilerTestHelpers.fs" t="Include" />
+          <e p="EditDistance.fs" t="Include" />
+          <e p="FSharp.Compiler.UnitTests.fsproj" t="IncludeRecursive" />
+          <e p="HashIfExpression.fs" t="Include" />
+          <e p="ManglingNameOfProvidedTypes.fs" t="Include" />
+          <e p="NunitHelpers.fs" t="Include" />
+          <e p="ProductVersion.fs" t="Include" />
+          <e p="VersionCompare.fs" t="Include" />
+        </e>
+        <e p="FSharp.Core.UnitTests" t="IncludeRecursive">
+          <e p="FSharp.Core" t="Include">
+            <e p="ComparersRegression.fs" t="Include" />
+            <e p="CreateComparersRegression.fsx" t="Include" />
+            <e p="DiscrimantedUnionType.fs" t="Include" />
+            <e p="Microsoft.FSharp.Collections" t="Include">
+              <e p="Array2Module.fs" t="Include" />
+              <e p="Array3Module.fs" t="Include" />
+              <e p="Array4Module.fs" t="Include" />
+              <e p="ArrayModule.fs" t="Include" />
+              <e p="ArrayModule2.fs" t="Include" />
+              <e p="ArrayProperties.fs" t="Include" />
+              <e p="CollectionModulesConsistency.fs" t="Include" />
+              <e p="ComparisonIdentityModule.fs" t="Include" />
+              <e p="HashIdentityModule.fs" t="Include" />
+              <e p="ListModule.fs" t="Include" />
+              <e p="ListModule2.fs" t="Include" />
+              <e p="ListProperties.fs" t="Include" />
+              <e p="ListType.fs" t="Include" />
+              <e p="MapModule.fs" t="Include" />
+              <e p="MapType.fs" t="Include" />
+              <e p="ObsoleteListFunctions.fs" t="Include" />
+              <e p="ObsoleteSeqFunctions.fs" t="Include" />
+              <e p="SeqModule.fs" t="Include" />
+              <e p="SeqModule2.fs" t="Include" />
+              <e p="SeqMultipleIteration.fs" t="Include" />
+              <e p="SeqProperties.fs" t="Include" />
+              <e p="SetModule.fs" t="Include" />
+              <e p="SetType.fs" t="Include" />
+              <e p="StringModule.fs" t="Include" />
+              <e p="Utils.fs" t="Include" />
+            </e>
+            <e p="Microsoft.FSharp.Control" t="Include">
+              <e p="AsyncModule.fs" t="Include" />
+              <e p="AsyncType.fs" t="Include" />
+              <e p="Cancellation.fs" t="Include" />
+              <e p="ContinuationsThreadingDetailsStandaloneExe.fs" t="Include" />
+              <e p="EventModule.fs" t="Include" />
+              <e p="LazyType.fs" t="Include" />
+              <e p="MailboxProcessorType.fs" t="Include" />
+              <e p="ObservableModule.fs" t="Include" />
+            </e>
+            <e p="Microsoft.FSharp.Core" t="Include">
+              <e p="BigIntType.fs" t="Include" />
+              <e p="ExtraTopLevelOperatorsTests.fs" t="Include" />
+              <e p="IntConversions.fs" t="Include" />
+              <e p="IntConversionsGenerated.fs" t="Include" />
+              <e p="IntConversionsTestGenerator.fsx" t="Include" />
+              <e p="OptionModule.fs" t="Include" />
+              <e p="PrintfTests.fs" t="Include" />
+              <e p="ResultTests.fs" t="Include" />
+            </e>
+            <e p="Microsoft.FSharp.Quotations" t="Include">
+              <e p="FSharpQuotations.fs" t="Include" />
+            </e>
+            <e p="Microsoft.FSharp.Reflection" t="Include">
+              <e p="FSharpReflection.fs" t="Include" />
+            </e>
+            <e p="OperatorsModule1.fs" t="Include" />
+            <e p="OperatorsModule2.fs" t="Include" />
+            <e p="PrimTypes.fs" t="Include" />
+            <e p="RecordTypes.fs" t="Include" />
+            <e p="SampleTuples" t="Include">
+              <e p="Microsoft.FSharp.TupleSample.nuspec" t="Include" />
+              <e p="Properties" t="Include">
+                <e p="AssemblyInfo.cs" t="Include" />
+              </e>
+              <e p="readme" t="Include" />
+              <e p="TupleSample.cs" t="Include" />
+              <e p="TupleSample.csproj" t="Include" />
+              <e p="TupleSample.sln" t="Include" />
+            </e>
+          </e>
+          <e p="FSharp.Core.UnitTests.fsproj" t="IncludeRecursive" />
+          <e p="LibraryTestFx.fs" t="Include" />
+          <e p="NUnitFrameworkShims.fs" t="Include" />
+          <e p="StructTuples.fs" t="Include" />
+          <e p="SurfaceArea.coreclr.fs" t="Include" />
+          <e p="SurfaceArea.net40.fs" t="Include" />
+          <e p="TypeForwarding.fs" t="Include" />
+        </e>
+      </e>
+      <e p="Tools" t="Include" />
+    </e>
+  </component>
+</project>
