@@ -370,6 +370,9 @@ module FSharp.Compiler.ExtensionTyping
               * systemRuntimeContainsType : (string -> bool)
               * systemRuntimeAssemblyVersion : System.Version
               * range -> Tainted<ITypeProvider> list
+              
+            abstract GetProvidedNamespaces : Tainted<ITypeProvider> * range -> Tainted<IProvidedNamespace>[]
+            abstract GetProvidedTypes : Tainted<IProvidedNamespace> * range -> Tainted<ProvidedType>[]
 
         [<Sealed>]
         type DefaultExtensionTypingProvider =

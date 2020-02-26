@@ -1279,6 +1279,9 @@ module FSharp.Compiler.ExtensionTyping
               * systemRuntimeContainsType : (string -> bool)
               * systemRuntimeAssemblyVersion : System.Version
               * range -> Tainted<ITypeProvider> list
+              
+            abstract GetProvidedNamespaces : Tainted<ITypeProvider> * range -> Tainted<IProvidedNamespace>[]
+            abstract GetProvidedTypes : Tainted<IProvidedNamespace> * range -> Tainted<ProvidedType>[]
 
         [<Sealed>]
         type DefaultExtensionTypingProvider() =
@@ -1303,6 +1306,12 @@ module FSharp.Compiler.ExtensionTyping
                                                 systemRuntimeContainsType,
                                                 systemRuntimeAssemblyVersion,
                                                 m)
+                     
+                member this.GetProvidedNamespaces(tp: Tainted<ITypeProvider>, m: range) = tp.PApplyArray((fun r -> r.GetNamespaces()), "GetNamespaces", m)
+                member this.GetProvidedTypes(pn: Tainted<IProvidedNamespace>, m: range) =
+                    let types = pn.PApplyArray((fun r -> r.GetTypes()), "GetTypes", m)
+                    let providedTypes = [| for t in types -> t.PApply((fun ty -> ty |> ProvidedType.CreateNoContext), m) |]
+                    providedTypes
 
         let mutable ExtensionTypingProvider = DefaultExtensionTypingProvider() :> IExtensionTypingProvider
 

@@ -4276,8 +4276,7 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
                             // NOTE: The types provided by GetTypes() are available for name resolution
                             // when the namespace is "opened". This is part of the specification of the language
                             // feature.
-                            let tys = providedNamespace.PApplyArray((fun provider -> provider.GetTypes()), "GetTypes", m)
-                            let ptys = [| for ty in tys -> ty.PApply((fun ty -> ty |> ProvidedType.CreateNoContext), m) |]
+                            let ptys = Shim.ExtensionTypingProvider.GetProvidedTypes(providedNamespace, m)
                             for st in ptys do 
                                 tcImportsStrong.InjectProvidedNamespaceOrTypeIntoEntity (typeProviderEnvironment, tcConfig, m, entityToInjectInto, [], path, provider, Some st)
 
@@ -4285,7 +4284,7 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
                                 loop providedNestedNamespace
 
                         RequireCompilationThread ctok // IProvidedType.GetNamespaces is an example of a type provider call
-                        let providedNamespaces = provider.PApplyArray((fun r -> r.GetNamespaces()), "GetNamespaces", m)
+                        let providedNamespaces = Shim.ExtensionTypingProvider.GetProvidedNamespaces(provider, m)
 
                         for providedNamespace in providedNamespaces do
                             loop providedNamespace
