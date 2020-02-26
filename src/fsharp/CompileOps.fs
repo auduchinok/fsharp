@@ -4284,7 +4284,7 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
                                 loop providedNestedNamespace
 
                         RequireCompilationThread ctok // IProvidedType.GetNamespaces is an example of a type provider call
-                        let providedNamespaces = Shim.ExtensionTypingProvider.GetProvidedNamespaces(provider, m)
+                        let providedNamespaces = provider.PApplyArray((fun r -> r.GetNamespaces()), "GetNamespaces", m)
 
                         for providedNamespace in providedNamespaces do
                             loop providedNamespace
