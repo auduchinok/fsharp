@@ -5,6 +5,7 @@
 // Type providers, validation of provided types, etc.
 
 module FSharp.Compiler.ExtensionTyping 
+    open FSharp.Compiler
     open System
     open System.IO
     open System.Collections.Generic
@@ -15,7 +16,7 @@ module FSharp.Compiler.ExtensionTyping
     open FSharp.Compiler.AbstractIL.IL
     open FSharp.Compiler.AbstractIL.Diagnostics // dprintfn
     open FSharp.Compiler.AbstractIL.Internal.Library // frontAndBack
-
+    
     type TypeProviderDesignation = TypeProviderDesignation of string
 
     exception ProvidedTypeResolution of range * System.Exception 
@@ -357,8 +358,8 @@ module FSharp.Compiler.ExtensionTyping
     type CustomAttributeNamedArgument = System.Reflection.CustomAttributeNamedArgument
     type CustomAttributeTypedArgument = System.Reflection.CustomAttributeTypedArgument
 
-    [<AllowNullLiteral; Sealed>]
-    type ProvidedType (x: System.Type, ctxt: ProvidedTypeContext) =
+    [<AllowNullLiteral>]
+    type ProvidedType(x: System.Type, ctxt: ProvidedTypeContext) =
         inherit ProvidedMemberInfo(x, ctxt)
         let provide () = ProvidedCustomAttributeProvider.Create (fun _provider -> x.CustomAttributes)
         interface IProvidedCustomAttributeProvider with 
@@ -373,53 +374,84 @@ module FSharp.Compiler.ExtensionTyping
         // Alternatively we could use assertions to enforce this.
 
         // Suppress relocation of generated types
-        member __.IsSuppressRelocate = (x.Attributes &&& enum (int32 TypeProviderTypeAttributes.SuppressRelocate)) <> enum 0  
-        member __.IsErased = (x.Attributes &&& enum (int32 TypeProviderTypeAttributes.IsErased)) <> enum 0  
-        member __.IsGenericType = x.IsGenericType
-        member __.Namespace = x.Namespace
-        member __.FullName = x.FullName
+        abstract member IsSuppressRelocate: bool
+        default __.IsSuppressRelocate = (x.Attributes &&& enum (int32 TypeProviderTypeAttributes.SuppressRelocate)) <> enum 0  
+        abstract member IsErased: bool
+        default __.IsErased = (x.Attributes &&& enum (int32 TypeProviderTypeAttributes.IsErased)) <> enum 0  
+        abstract member IsGenericType: bool
+        default __.IsGenericType = x.IsGenericType
+        abstract member Namespace: string
+        default __.Namespace = x.Namespace
+        abstract member FullName: string
+        default __.FullName = x.FullName
         member __.IsArray = x.IsArray
         member __.Assembly = x.Assembly |> ProvidedAssembly.Create ctxt
         member __.GetInterfaces() = x.GetInterfaces() |> ProvidedType.CreateArray ctxt
         member __.GetMethods() = x.GetMethods bindingFlags |> ProvidedMethodInfo.CreateArray ctxt
         member __.GetEvents() = x.GetEvents bindingFlags |> ProvidedEventInfo.CreateArray ctxt
         member __.GetEvent nm = x.GetEvent(nm, bindingFlags) |> ProvidedEventInfo.Create ctxt
-        member __.GetProperties() = x.GetProperties bindingFlags |> ProvidedPropertyInfo.CreateArray ctxt
-        member __.GetProperty nm = x.GetProperty(nm, bindingFlags) |> ProvidedPropertyInfo.Create ctxt
+        abstract member GetProperties: unit -> ProvidedPropertyInfo[]
+        default __.GetProperties() = x.GetProperties bindingFlags |> ProvidedPropertyInfo.CreateArray ctxt
+        abstract member GetProperty: string -> ProvidedPropertyInfo
+        default __.GetProperty nm = x.GetProperty(nm, bindingFlags) |> ProvidedPropertyInfo.Create ctxt
         member __.GetConstructors() = x.GetConstructors bindingFlags |> ProvidedConstructorInfo.CreateArray ctxt
         member __.GetFields() = x.GetFields bindingFlags |> ProvidedFieldInfo.CreateArray ctxt
         member __.GetField nm = x.GetField(nm, bindingFlags) |> ProvidedFieldInfo.Create ctxt
-        member __.GetAllNestedTypes() = x.GetNestedTypes(bindingFlags ||| BindingFlags.NonPublic) |> ProvidedType.CreateArray ctxt
-        member __.GetNestedTypes() = x.GetNestedTypes bindingFlags |> ProvidedType.CreateArray ctxt
+        abstract member GetAllNestedTypes: unit -> ProvidedType[]
+        default __.GetAllNestedTypes() = x.GetNestedTypes(bindingFlags ||| BindingFlags.NonPublic) |> ProvidedType.CreateArray ctxt
+        abstract member GetNestedTypes: unit -> ProvidedType[]
+        default __.GetNestedTypes() = x.GetNestedTypes bindingFlags |> ProvidedType.CreateArray ctxt
         /// Type.GetNestedType(string) can return null if there is no nested type with given name
-        member __.GetNestedType nm = x.GetNestedType (nm, bindingFlags) |> ProvidedType.Create ctxt
+        abstract member GetNestedType: nm: string -> ProvidedType
+        default __.GetNestedType nm = x.GetNestedType (nm, bindingFlags) |> ProvidedType.Create ctxt
         /// Type.GetGenericTypeDefinition() either returns type or throws exception, null is not permitted
-        member __.GetGenericTypeDefinition() = x.GetGenericTypeDefinition() |> ProvidedType.CreateWithNullCheck ctxt "GenericTypeDefinition"
+        abstract member GetGenericTypeDefinition: unit -> ProvidedType
+        default __.GetGenericTypeDefinition() = x.GetGenericTypeDefinition() |> ProvidedType.CreateWithNullCheck ctxt "GenericTypeDefinition"
         /// Type.BaseType can be null when Type is interface or object
-        member __.BaseType = x.BaseType |> ProvidedType.Create ctxt
-        member __.GetStaticParameters(provider: ITypeProvider) = provider.GetStaticParameters x |> ProvidedParameterInfo.CreateArray ctxt
+        abstract member BaseType: ProvidedType
+        default __.BaseType = x.BaseType |> ProvidedType.Create ctxt
+        abstract member GetStaticParameters: ITypeProvider -> ProvidedParameterInfo[]
+        default __.GetStaticParameters(provider: ITypeProvider) = provider.GetStaticParameters x |> ProvidedParameterInfo.CreateArray ctxt
         /// Type.GetElementType can be null if i.e. Type is not array\pointer\byref type
-        member __.GetElementType() = x.GetElementType() |> ProvidedType.Create ctxt
-        member __.GetGenericArguments() = x.GetGenericArguments() |> ProvidedType.CreateArray ctxt
-        member __.ApplyStaticArguments(provider: ITypeProvider, fullTypePathAfterArguments, staticArgs: obj[]) = 
+        abstract member GetElementType: unit -> ProvidedType
+        default __.GetElementType() = x.GetElementType() |> ProvidedType.Create ctxt
+        abstract member GetGenericArguments: unit -> ProvidedType[]
+        default __.GetGenericArguments() = x.GetGenericArguments() |> ProvidedType.CreateArray ctxt
+        abstract member ApplyStaticArguments: ITypeProvider * string[] * obj[] -> ProvidedType
+        default __.ApplyStaticArguments(provider: ITypeProvider, fullTypePathAfterArguments, staticArgs: obj[]) = 
             provider.ApplyStaticArguments(x, fullTypePathAfterArguments,  staticArgs) |> ProvidedType.Create ctxt
-        member __.IsVoid = (typeof<System.Void>.Equals x || (x.Namespace = "System" && x.Name = "Void"))
-        member __.IsGenericParameter = x.IsGenericParameter
-        member __.IsValueType = x.IsValueType
-        member __.IsByRef = x.IsByRef
-        member __.IsPointer = x.IsPointer
-        member __.IsPublic = x.IsPublic
-        member __.IsNestedPublic = x.IsNestedPublic
-        member __.IsEnum = x.IsEnum
-        member __.IsClass = x.IsClass
-        member __.IsSealed = x.IsSealed
-        member __.IsAbstract = x.IsAbstract
-        member __.IsInterface = x.IsInterface
-        member __.GetArrayRank() = x.GetArrayRank()
-        member __.GenericParameterPosition = x.GenericParameterPosition
+        abstract member IsVoid: bool
+        default __.IsVoid = (typeof<System.Void>.Equals x || (x.Namespace = "System" && x.Name = "Void"))
+        abstract member IsGenericParameter: bool
+        default __.IsGenericParameter = x.IsGenericParameter
+        abstract member IsValueType: bool
+        default __.IsValueType = x.IsValueType
+        abstract member IsByRef: bool
+        default __.IsByRef = x.IsByRef
+        abstract member IsPointer: bool
+        default __.IsPointer = x.IsPointer
+        abstract member IsPublic: bool
+        default __.IsPublic = x.IsPublic
+        abstract member IsNestedPublic: bool
+        default __.IsNestedPublic = x.IsNestedPublic
+        abstract member IsEnum: bool
+        default __.IsEnum = x.IsEnum
+        abstract member IsClass: bool
+        default __.IsClass = x.IsClass
+        abstract member IsSealed: bool
+        default __.IsSealed = x.IsSealed
+        abstract member IsAbstract: bool
+        default __.IsAbstract = x.IsAbstract
+        abstract member IsInterface: bool
+        default __.IsInterface = x.IsInterface
+        abstract member GetArrayRank: unit -> int
+        default __.GetArrayRank() = x.GetArrayRank()
+        abstract member GenericParameterPosition: int 
+        default __.GenericParameterPosition = x.GenericParameterPosition
         member __.RawSystemType = x
         /// Type.GetEnumUnderlyingType either returns type or raises exception, null is not permitted
-        member __.GetEnumUnderlyingType() = 
+        abstract member GetEnumUnderlyingType: unit -> ProvidedType
+        default __.GetEnumUnderlyingType() = 
             x.GetEnumUnderlyingType() 
             |> ProvidedType.CreateWithNullCheck ctxt "EnumUnderlyingType"
         static member Create ctxt x = match x with null -> null | t -> ProvidedType (t, ctxt)
@@ -491,26 +523,35 @@ module FSharp.Compiler.ExtensionTyping
     and [<AllowNullLiteral; AbstractClass>] 
         ProvidedMemberInfo (x: System.Reflection.MemberInfo, ctxt) = 
         let provide () = ProvidedCustomAttributeProvider.Create (fun _provider -> x.CustomAttributes)
-        member __.Name = x.Name
+        abstract member Name: string
+        default __.Name = x.Name
         /// DeclaringType can be null if MemberInfo belongs to Module, not to Type
-        member __.DeclaringType = ProvidedType.Create ctxt x.DeclaringType
+        abstract member DeclaringType: ProvidedType
+        default __.DeclaringType = ProvidedType.Create ctxt x.DeclaringType
         interface IProvidedCustomAttributeProvider with 
             member __.GetHasTypeProviderEditorHideMethodsAttribute provider = provide().GetHasTypeProviderEditorHideMethodsAttribute provider
             member __.GetDefinitionLocationAttribute provider = provide().GetDefinitionLocationAttribute provider
             member __.GetXmlDocAttributes provider = provide().GetXmlDocAttributes provider
             member __.GetAttributeConstructorArgs (provider, attribName) = provide().GetAttributeConstructorArgs (provider, attribName)
 
-    and [<AllowNullLiteral; Sealed>] 
+    and [<AllowNullLiteral>] 
         ProvidedParameterInfo (x: System.Reflection.ParameterInfo, ctxt) = 
         let provide () = ProvidedCustomAttributeProvider.Create (fun _provider -> x.CustomAttributes)
-        member __.Name = x.Name
-        member __.IsOut = x.IsOut
-        member __.IsIn = x.IsIn
-        member __.IsOptional = x.IsOptional
-        member __.RawDefaultValue = x.RawDefaultValue
-        member __.HasDefaultValue = x.Attributes.HasFlag(System.Reflection.ParameterAttributes.HasDefault)
+        abstract member Name: string
+        default __.Name = x.Name
+        abstract member IsOut: bool
+        default __.IsOut = x.IsOut
+        abstract member IsIn: bool
+        default __.IsIn = x.IsIn
+        abstract member IsOptional: bool
+        default __.IsOptional = x.IsOptional
+        abstract member RawDefaultValue: obj
+        default __.RawDefaultValue = x.RawDefaultValue
+        abstract member HasDefaultValue: bool
+        default __.HasDefaultValue = x.Attributes.HasFlag(System.Reflection.ParameterAttributes.HasDefault)
         /// ParameterInfo.ParameterType cannot be null
-        member __.ParameterType = ProvidedType.CreateWithNullCheck ctxt "ParameterType" x.ParameterType 
+        abstract member ParameterType: ProvidedType
+        default __.ParameterType = ProvidedType.CreateWithNullCheck ctxt "ParameterType" x.ParameterType 
         static member Create ctxt x = match x with null -> null | t -> ProvidedParameterInfo (t, ctxt)
         static member CreateArray ctxt xs = match xs with null -> null | _ -> xs |> Array.map (ProvidedParameterInfo.Create ctxt)  // TODO null wrong?
         interface IProvidedCustomAttributeProvider with 
@@ -536,19 +577,32 @@ module FSharp.Compiler.ExtensionTyping
         ProvidedMethodBase (x: System.Reflection.MethodBase, ctxt) = 
         inherit ProvidedMemberInfo(x, ctxt)
         member __.Context = ctxt
-        member __.IsGenericMethod = x.IsGenericMethod
-        member __.IsStatic  = x.IsStatic
-        member __.IsFamily  = x.IsFamily
-        member __.IsFamilyOrAssembly = x.IsFamilyOrAssembly
-        member __.IsFamilyAndAssembly = x.IsFamilyAndAssembly
-        member __.IsVirtual  = x.IsVirtual
-        member __.IsFinal = x.IsFinal
-        member __.IsPublic = x.IsPublic
-        member __.IsAbstract  = x.IsAbstract
-        member __.IsHideBySig = x.IsHideBySig
-        member __.IsConstructor  = x.IsConstructor
-        member __.GetParameters() = x.GetParameters() |> ProvidedParameterInfo.CreateArray ctxt 
-        member __.GetGenericArguments() = x.GetGenericArguments() |> ProvidedType.CreateArray ctxt
+        abstract member IsGenericMethod: bool
+        default __.IsGenericMethod = x.IsGenericMethod
+        abstract member IsStatic: bool
+        default __.IsStatic = x.IsStatic
+        abstract member IsFamily: bool
+        default __.IsFamily = x.IsFamily
+        abstract member IsFamilyOrAssembly: bool
+        default __.IsFamilyOrAssembly = x.IsFamilyOrAssembly
+        abstract member IsFamilyAndAssembly: bool
+        default __.IsFamilyAndAssembly = x.IsFamilyAndAssembly
+        abstract member IsVirtual: bool
+        default __.IsVirtual = x.IsVirtual
+        abstract member IsFinal: bool
+        default __.IsFinal = x.IsFinal
+        abstract member IsPublic: bool
+        default __.IsPublic = x.IsPublic
+        abstract member IsAbstract: bool
+        default __.IsAbstract = x.IsAbstract
+        abstract member IsHideBySig: bool
+        default __.IsHideBySig = x.IsHideBySig
+        abstract member IsConstructor: bool
+        default __.IsConstructor = x.IsConstructor
+        abstract member GetParameters: unit -> ProvidedParameterInfo[]
+        default __.GetParameters() = x.GetParameters() |> ProvidedParameterInfo.CreateArray ctxt 
+        abstract member GetGenericArguments: unit -> ProvidedType[]
+        default __.GetGenericArguments() = x.GetGenericArguments() |> ProvidedType.CreateArray ctxt
         member __.Handle = x
         static member TaintedGetHashCode (x: Tainted<ProvidedMethodBase>) =            
            Tainted.GetHashCodeTainted (x.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName))) 
@@ -624,30 +678,38 @@ module FSharp.Compiler.ExtensionTyping
 
 
 
-    and [<AllowNullLiteral; Sealed>] 
+    and [<AllowNullLiteral>] 
         ProvidedMethodInfo (x: System.Reflection.MethodInfo, ctxt) = 
         inherit ProvidedMethodBase(x, ctxt)
-
-        member __.ReturnType = x.ReturnType |> ProvidedType.CreateWithNullCheck ctxt "ReturnType"
+        
+        abstract member ReturnType: ProvidedType
+        default __.ReturnType = x.ReturnType |> ProvidedType.CreateWithNullCheck ctxt "ReturnType"
 
         static member Create ctxt x = match x with null -> null | t -> ProvidedMethodInfo (t, ctxt)
 
         static member CreateArray ctxt xs = match xs with null -> null | _ -> xs |> Array.map (ProvidedMethodInfo.Create ctxt)
         member __.Handle = x
-        member __.MetadataToken = x.MetadataToken
+        abstract member MetadataToken: int
+        default __.MetadataToken = x.MetadataToken
         override __.Equals y = assert false; match y with :? ProvidedMethodInfo as y -> x.Equals y.Handle | _ -> false
         override __.GetHashCode() = assert false; x.GetHashCode()
 
-    and [<AllowNullLiteral; Sealed>] 
+    and [<AllowNullLiteral>] 
         ProvidedPropertyInfo (x: System.Reflection.PropertyInfo, ctxt) = 
         inherit ProvidedMemberInfo(x, ctxt)
-        member __.GetGetMethod() = x.GetGetMethod() |> ProvidedMethodInfo.Create ctxt
-        member __.GetSetMethod() = x.GetSetMethod() |> ProvidedMethodInfo.Create ctxt
-        member __.CanRead = x.CanRead
-        member __.CanWrite = x.CanWrite
-        member __.GetIndexParameters() = x.GetIndexParameters() |> ProvidedParameterInfo.CreateArray ctxt
+        abstract member GetGetMethod: unit -> ProvidedMethodInfo
+        default __.GetGetMethod() = x.GetGetMethod() |> ProvidedMethodInfo.Create ctxt
+        abstract member GetSetMethod: unit -> ProvidedMethodInfo
+        default __.GetSetMethod() = x.GetSetMethod() |> ProvidedMethodInfo.Create ctxt
+        abstract member CanRead: bool
+        default __.CanRead = x.CanRead
+        abstract member CanWrite: bool
+        default __.CanWrite = x.CanWrite
+        abstract member GetIndexParameters: unit -> ProvidedParameterInfo[]
+        default __.GetIndexParameters() = x.GetIndexParameters() |> ProvidedParameterInfo.CreateArray ctxt
         /// PropertyInfo.PropertyType cannot be null
-        member __.PropertyType = x.PropertyType |> ProvidedType.CreateWithNullCheck ctxt "PropertyType"
+        abstract member PropertyType: ProvidedType
+        default __.PropertyType = x.PropertyType |> ProvidedType.CreateWithNullCheck ctxt "PropertyType"
         static member Create ctxt x = match x with null -> null | t -> ProvidedPropertyInfo (t, ctxt)
         static member CreateArray ctxt xs = match xs with null -> null | _ -> xs |> Array.map (ProvidedPropertyInfo.Create ctxt)
         member __.Handle = x
@@ -1016,51 +1078,6 @@ module FSharp.Compiler.ExtensionTyping
         if staticParameters.PUntaint((fun a -> a.Length), m)  = 0 then 
             ValidateProvidedTypeAfterStaticInstantiation(m, st, expectedPath, expectedName)
 
-
-    /// Resolve a (non-nested) provided type given a full namespace name and a type name. 
-    /// May throw an exception which will be turned into an error message by one of the 'Try' function below.
-    /// If resolution is successful the type is then validated.
-    let ResolveProvidedType (resolver: Tainted<ITypeProvider>, m, moduleOrNamespace: string[], typeName) =
-        let displayName = String.Join(".", moduleOrNamespace)
-
-        // Try to find the type in the given provided namespace
-        let rec tryNamespace (providedNamespace: Tainted<IProvidedNamespace>) = 
-
-            // Get the provided namespace name
-            let providedNamespaceName = providedNamespace.PUntaint((fun providedNamespace -> providedNamespace.NamespaceName), range=m)
-
-            // Check if the provided namespace name is an exact match of the required namespace name
-            if displayName = providedNamespaceName then
-                let resolvedType = providedNamespace.PApply((fun providedNamespace -> ProvidedType.CreateNoContext(providedNamespace.ResolveTypeName typeName)), range=m) 
-                match resolvedType with
-                |   Tainted.Null -> None
-                |   result -> 
-                    ValidateProvidedTypeDefinition(m, result, moduleOrNamespace, typeName)
-                    Some result
-            else
-                // Note: This eagerly explores all provided namespaces even if there is no match of even a prefix in the
-                // namespace names. 
-                let providedNamespaces = providedNamespace.PApplyArray((fun providedNamespace -> providedNamespace.GetNestedNamespaces()), "GetNestedNamespaces", range=m)
-                tryNamespaces providedNamespaces
-
-        and tryNamespaces (providedNamespaces: Tainted<IProvidedNamespace>[]) = 
-            providedNamespaces |> Array.tryPick tryNamespace
-
-        let providedNamespaces = resolver.PApplyArray((fun resolver -> resolver.GetNamespaces()), "GetNamespaces", range=m)
-        match tryNamespaces providedNamespaces with 
-        | None -> resolver.PApply((fun _ -> null), m)
-        | Some res -> res
-                    
-    /// Try to resolve a type against the given host with the given resolution environment.
-    let TryResolveProvidedType(resolver: Tainted<ITypeProvider>, m, moduleOrNamespace, typeName) =
-        try 
-            match ResolveProvidedType(resolver, m, moduleOrNamespace, typeName) with
-            | Tainted.Null -> None
-            | ty -> Some ty
-        with e -> 
-            errorRecovery e m
-            None
-
     let ILPathToProvidedType  (st: Tainted<ProvidedType>, m) = 
         let nameContrib (st: Tainted<ProvidedType>) = 
             let typeName = st.PUntaint((fun st -> st.Name), m)
@@ -1132,75 +1149,6 @@ module FSharp.Compiler.ExtensionTyping
                     if actualName <> expectedTypeNameAfterArguments then 
                         error(Error(FSComp.SR.etProvidedAppliedTypeHadWrongName(typeWithArguments.TypeProviderDesignation, expectedTypeNameAfterArguments, actualName), m))
                 Some (typeWithArguments, checkTypeName)
-
-    /// Given a mangled name reference to a non-nested provided type, resolve it.
-    /// If necessary, demangle its static arguments before applying them.
-    let TryLinkProvidedType(resolver: Tainted<ITypeProvider>, moduleOrNamespace: string[], typeLogicalName: string, m: range) =
-        
-        // Demangle the static parameters
-        let typeName, argNamesAndValues = 
-            try 
-                PrettyNaming.demangleProvidedTypeName typeLogicalName 
-            with PrettyNaming.InvalidMangledStaticArg piece -> 
-                error(Error(FSComp.SR.etProvidedTypeReferenceInvalidText piece, range0)) 
-
-        let argSpecsTable = dict argNamesAndValues
-        let typeBeforeArguments = ResolveProvidedType(resolver, range0, moduleOrNamespace, typeName) 
-
-        match typeBeforeArguments with 
-        | Tainted.Null -> None
-        | _ -> 
-            // Take the static arguments (as strings, taken from the text in the reference we're relinking), 
-            // and convert them to objects of the appropriate type, based on the expected kind.
-            let staticParameters = typeBeforeArguments.PApplyWithProvider((fun (typeBeforeArguments, resolver) -> typeBeforeArguments.GetStaticParameters resolver), range=range0)
-
-            let staticParameters = staticParameters.PApplyArray(id, "", m)
-            
-            let staticArgs = 
-                staticParameters |> Array.map (fun sp -> 
-                      let typeBeforeArgumentsName = typeBeforeArguments.PUntaint ((fun st -> st.Name), m)
-                      let spName = sp.PUntaint ((fun sp -> sp.Name), m)
-                      match argSpecsTable.TryGetValue spName with
-                      | true, arg ->
-                          /// Find the name of the representation type for the static parameter
-                          let spReprTypeName = 
-                              sp.PUntaint((fun sp -> 
-                                  let pt = sp.ParameterType 
-                                  let ut = pt.RawSystemType
-                                  let uet = if pt.IsEnum then ut.GetEnumUnderlyingType() else ut
-                                  uet.FullName), m)
-
-                          match spReprTypeName with 
-                          | "System.SByte" -> box (sbyte arg)
-                          | "System.Int16" -> box (int16 arg)
-                          | "System.Int32" -> box (int32 arg)
-                          | "System.Int64" -> box (int64 arg)
-                          | "System.Byte" -> box (byte arg)
-                          | "System.UInt16" -> box (uint16 arg)
-                          | "System.UInt32" -> box (uint32 arg)
-                          | "System.UInt64" -> box (uint64 arg)
-                          | "System.Decimal" -> box (decimal arg)
-                          | "System.Single" -> box (single arg)
-                          | "System.Double" -> box (double arg)
-                          | "System.Char" -> box (char arg)
-                          | "System.Boolean" -> box (arg = "True")
-                          | "System.String" -> box (string arg)
-                          | s -> error(Error(FSComp.SR.etUnknownStaticArgumentKind(s, typeLogicalName), range0))
-
-                      | _ ->
-                          if sp.PUntaint ((fun sp -> sp.IsOptional), m) then 
-                              match sp.PUntaint((fun sp -> sp.RawDefaultValue), m) with
-                              | null -> error (Error(FSComp.SR.etStaticParameterRequiresAValue (spName, typeBeforeArgumentsName, typeBeforeArgumentsName, spName), range0))
-                              | v -> v
-                          else
-                              error(Error(FSComp.SR.etProvidedTypeReferenceMissingArgument spName, range0)))
-                    
-
-            match TryApplyProvidedType(typeBeforeArguments, None, staticArgs, range0) with 
-            | Some (typeWithArguments, checkTypeName) -> 
-                checkTypeName() 
-                Some typeWithArguments
-            | None -> None
 
     /// Get the parts of a .NET namespace. Special rules: null means global, empty is not allowed.
     let GetPartsOfNamespaceRecover(namespaceName: string) = 
@@ -1281,6 +1229,7 @@ module FSharp.Compiler.ExtensionTyping
               * range -> Tainted<ITypeProvider> list
 
             abstract GetProvidedTypes : Tainted<IProvidedNamespace> * range -> Tainted<ProvidedType>[]
+            abstract ResolveTypeName : Tainted<IProvidedNamespace> * string * range -> Tainted<ProvidedType>
 
         [<Sealed>]
         type DefaultExtensionTypingProvider() =
@@ -1310,7 +1259,124 @@ module FSharp.Compiler.ExtensionTyping
                     let types = pn.PApplyArray((fun r -> r.GetTypes()), "GetTypes", m)
                     let providedTypes = [| for t in types -> t.PApply((fun ty -> ty |> ProvidedType.CreateNoContext), m) |]
                     providedTypes
+                    
+                member this.ResolveTypeName(pn: Tainted<IProvidedNamespace>, typeName: string, m: range) =
+                    pn.PApply((fun providedNamespace -> ProvidedType.CreateNoContext(providedNamespace.ResolveTypeName typeName)), range=m) 
 
         let mutable ExtensionTypingProvider = DefaultExtensionTypingProvider() :> IExtensionTypingProvider
+    
+    /// Resolve a (non-nested) provided type given a full namespace name and a type name. 
+    /// May throw an exception which will be turned into an error message by one of the 'Try' function below.
+    /// If resolution is successful the type is then validated.
+    let ResolveProvidedType (resolver: Tainted<ITypeProvider>, m, moduleOrNamespace: string[], typeName) =
+        let displayName = String.Join(".", moduleOrNamespace)
+
+        // Try to find the type in the given provided namespace
+        let rec tryNamespace (providedNamespace: Tainted<IProvidedNamespace>) = 
+
+            // Get the provided namespace name
+            let providedNamespaceName = providedNamespace.PUntaint((fun providedNamespace -> providedNamespace.NamespaceName), range=m)
+
+            // Check if the provided namespace name is an exact match of the required namespace name
+            if displayName = providedNamespaceName then
+                let resolvedType = Shim.ExtensionTypingProvider.ResolveTypeName(providedNamespace, typeName, m) 
+                match resolvedType with
+                |   Tainted.Null -> None
+                |   result -> 
+                    ValidateProvidedTypeDefinition(m, result, moduleOrNamespace, typeName)
+                    Some result
+            else
+                // Note: This eagerly explores all provided namespaces even if there is no match of even a prefix in the
+                // namespace names. 
+                let providedNamespaces = providedNamespace.PApplyArray((fun providedNamespace -> providedNamespace.GetNestedNamespaces()), "GetNestedNamespaces", range=m)
+                tryNamespaces providedNamespaces
+
+        and tryNamespaces (providedNamespaces: Tainted<IProvidedNamespace>[]) = 
+            providedNamespaces |> Array.tryPick tryNamespace
+
+        let providedNamespaces = resolver.PApplyArray((fun resolver -> resolver.GetNamespaces()), "GetNamespaces", range=m)
+        match tryNamespaces providedNamespaces with 
+        | None -> resolver.PApply((fun _ -> null), m)
+        | Some res -> res
+        
+    /// Try to resolve a type against the given host with the given resolution environment.
+    let TryResolveProvidedType(resolver: Tainted<ITypeProvider>, m, moduleOrNamespace, typeName) =
+        try 
+            match ResolveProvidedType(resolver, m, moduleOrNamespace, typeName) with
+            | Tainted.Null -> None
+            | ty -> Some ty
+        with e -> 
+            errorRecovery e m
+            None
+            
+    /// Given a mangled name reference to a non-nested provided type, resolve it.
+    /// If necessary, demangle its static arguments before applying them.
+    let TryLinkProvidedType(resolver: Tainted<ITypeProvider>, moduleOrNamespace: string[], typeLogicalName: string, m: range) =
+        
+        // Demangle the static parameters
+        let typeName, argNamesAndValues = 
+            try 
+                PrettyNaming.demangleProvidedTypeName typeLogicalName 
+            with PrettyNaming.InvalidMangledStaticArg piece -> 
+                error(Error(FSComp.SR.etProvidedTypeReferenceInvalidText piece, range0)) 
+
+        let argSpecsTable = dict argNamesAndValues
+        let typeBeforeArguments = ResolveProvidedType(resolver, range0, moduleOrNamespace, typeName) 
+
+        match typeBeforeArguments with 
+        | Tainted.Null -> None
+        | _ -> 
+            // Take the static arguments (as strings, taken from the text in the reference we're relinking), 
+            // and convert them to objects of the appropriate type, based on the expected kind.
+            let staticParameters = typeBeforeArguments.PApplyWithProvider((fun (typeBeforeArguments, resolver) -> typeBeforeArguments.GetStaticParameters resolver), range=range0)
+
+            let staticParameters = staticParameters.PApplyArray(id, "", m)
+            
+            let staticArgs = 
+                staticParameters |> Array.map (fun sp -> 
+                      let typeBeforeArgumentsName = typeBeforeArguments.PUntaint ((fun st -> st.Name), m)
+                      let spName = sp.PUntaint ((fun sp -> sp.Name), m)
+                      match argSpecsTable.TryGetValue spName with
+                      | true, arg ->
+                          /// Find the name of the representation type for the static parameter
+                          let spReprTypeName = 
+                              sp.PUntaint((fun sp -> 
+                                  let pt = sp.ParameterType 
+                                  let ut = pt.RawSystemType
+                                  let uet = if pt.IsEnum then ut.GetEnumUnderlyingType() else ut
+                                  uet.FullName), m)
+
+                          match spReprTypeName with 
+                          | "System.SByte" -> box (sbyte arg)
+                          | "System.Int16" -> box (int16 arg)
+                          | "System.Int32" -> box (int32 arg)
+                          | "System.Int64" -> box (int64 arg)
+                          | "System.Byte" -> box (byte arg)
+                          | "System.UInt16" -> box (uint16 arg)
+                          | "System.UInt32" -> box (uint32 arg)
+                          | "System.UInt64" -> box (uint64 arg)
+                          | "System.Decimal" -> box (decimal arg)
+                          | "System.Single" -> box (single arg)
+                          | "System.Double" -> box (double arg)
+                          | "System.Char" -> box (char arg)
+                          | "System.Boolean" -> box (arg = "True")
+                          | "System.String" -> box (string arg)
+                          | s -> error(Error(FSComp.SR.etUnknownStaticArgumentKind(s, typeLogicalName), range0))
+
+                      | _ ->
+                          if sp.PUntaint ((fun sp -> sp.IsOptional), m) then 
+                              match sp.PUntaint((fun sp -> sp.RawDefaultValue), m) with
+                              | null -> error (Error(FSComp.SR.etStaticParameterRequiresAValue (spName, typeBeforeArgumentsName, typeBeforeArgumentsName, spName), range0))
+                              | v -> v
+                          else
+                              error(Error(FSComp.SR.etProvidedTypeReferenceMissingArgument spName, range0)))
+                    
+
+            match TryApplyProvidedType(typeBeforeArguments, None, staticArgs, range0) with 
+            | Some (typeWithArguments, checkTypeName) -> 
+                checkTypeName() 
+                Some typeWithArguments
+            | None -> None
+
 
 #endif

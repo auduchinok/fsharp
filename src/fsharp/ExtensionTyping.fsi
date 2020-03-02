@@ -70,49 +70,51 @@ module FSharp.Compiler.ExtensionTyping
         /// Map the TyconRef objects, if any
         member RemapTyconRefs : (obj -> obj) -> ProvidedTypeContext 
 
-    type [<AllowNullLiteral; Sealed; Class>] 
+    type [<AllowNullLiteral; Class>] 
         ProvidedType =
+        new : x: System.Type * ctxt: ProvidedTypeContext -> ProvidedType
         inherit ProvidedMemberInfo
-        member IsSuppressRelocate : bool
-        member IsErased : bool
-        member IsGenericType : bool
-        member Namespace : string
-        member FullName : string
+        abstract member IsSuppressRelocate : bool
+        abstract member IsErased : bool
+        abstract member IsGenericType : bool
+        abstract member Namespace : string
+        abstract member FullName : string
         member IsArray : bool
         member GetInterfaces : unit -> ProvidedType[]
         member Assembly : ProvidedAssembly
-        member BaseType : ProvidedType
-        member GetNestedType : string -> ProvidedType
-        member GetNestedTypes : unit -> ProvidedType[]
-        member GetAllNestedTypes : unit -> ProvidedType[]
+        abstract member BaseType : ProvidedType
+        abstract member GetNestedType : string -> ProvidedType
+        abstract member GetNestedTypes : unit -> ProvidedType[]
+        abstract member GetAllNestedTypes : unit -> ProvidedType[]
         member GetMethods : unit -> ProvidedMethodInfo[]
         member GetFields : unit -> ProvidedFieldInfo[]
         member GetField : string -> ProvidedFieldInfo
-        member GetProperties : unit -> ProvidedPropertyInfo[]
-        member GetProperty : string -> ProvidedPropertyInfo
+        abstract member GetProperties : unit -> ProvidedPropertyInfo[]
+        abstract member GetProperty : string -> ProvidedPropertyInfo
         member GetEvents : unit -> ProvidedEventInfo[]
         member GetEvent : string -> ProvidedEventInfo
         member GetConstructors : unit -> ProvidedConstructorInfo[]
-        member GetStaticParameters : ITypeProvider -> ProvidedParameterInfo[]
-        member GetGenericTypeDefinition : unit -> ProvidedType
-        member IsVoid : bool
-        member IsGenericParameter : bool
-        member IsValueType : bool
-        member IsByRef : bool
-        member IsPointer : bool
-        member IsEnum : bool
-        member IsInterface : bool
-        member IsClass : bool
-        member IsSealed : bool
-        member IsAbstract : bool
-        member IsPublic : bool
-        member IsNestedPublic : bool
-        member GenericParameterPosition : int
-        member GetElementType : unit -> ProvidedType
-        member GetGenericArguments : unit -> ProvidedType[]
-        member GetArrayRank : unit -> int
         member RawSystemType : System.Type
-        member GetEnumUnderlyingType : unit -> ProvidedType
+        abstract member GetStaticParameters : ITypeProvider -> ProvidedParameterInfo[]
+        abstract member ApplyStaticArguments: ITypeProvider * string[] * obj[] -> ProvidedType
+        abstract member GetGenericTypeDefinition : unit -> ProvidedType
+        abstract member IsVoid : bool
+        abstract member IsGenericParameter : bool
+        abstract member IsValueType : bool
+        abstract member IsByRef : bool
+        abstract member IsPointer : bool
+        abstract member IsEnum : bool
+        abstract member IsInterface : bool
+        abstract member IsClass : bool
+        abstract member IsSealed : bool
+        abstract member IsAbstract : bool
+        abstract member IsPublic : bool
+        abstract member IsNestedPublic : bool
+        abstract member GenericParameterPosition : int
+        abstract member GetElementType : unit -> ProvidedType
+        abstract member GetGenericArguments : unit -> ProvidedType[]
+        abstract member GetArrayRank : unit -> int
+        abstract member GetEnumUnderlyingType : unit -> ProvidedType
         static member Void : ProvidedType
         static member CreateNoContext : Type -> ProvidedType
         member TryGetILTypeRef : unit -> ILTypeRef option
@@ -138,45 +140,47 @@ module FSharp.Compiler.ExtensionTyping
 
     and [<AllowNullLiteral;AbstractClass>] 
         ProvidedMemberInfo = 
-        member Name :string
-        member DeclaringType : ProvidedType
+        abstract member Name :string
+        abstract member DeclaringType : ProvidedType
         interface IProvidedCustomAttributeProvider 
 
     and [<AllowNullLiteral;AbstractClass>] 
         ProvidedMethodBase = 
         inherit ProvidedMemberInfo
-        member IsGenericMethod : bool
-        member IsStatic : bool
-        member IsFamily : bool
-        member IsFamilyAndAssembly : bool
-        member IsFamilyOrAssembly : bool
-        member IsVirtual : bool
-        member IsFinal : bool
-        member IsPublic : bool
-        member IsAbstract : bool
-        member IsHideBySig : bool
-        member IsConstructor : bool
-        member GetParameters : unit -> ProvidedParameterInfo[]
-        member GetGenericArguments : unit -> ProvidedType[]
+        abstract member IsGenericMethod : bool
+        abstract member IsStatic : bool
+        abstract member IsFamily : bool
+        abstract member IsFamilyAndAssembly : bool
+        abstract member IsFamilyOrAssembly : bool
+        abstract member IsVirtual : bool
+        abstract member IsFinal : bool
+        abstract member IsPublic : bool
+        abstract member IsAbstract : bool
+        abstract member IsHideBySig : bool
+        abstract member IsConstructor : bool
+        abstract member GetParameters : unit -> ProvidedParameterInfo[]
+        abstract member GetGenericArguments : unit -> ProvidedType[]
         member GetStaticParametersForMethod : ITypeProvider -> ProvidedParameterInfo[]
         static member TaintedGetHashCode : Tainted<ProvidedMethodBase> -> int
         static member TaintedEquals : Tainted<ProvidedMethodBase> * Tainted<ProvidedMethodBase> -> bool 
 
-    and [<AllowNullLiteral; Sealed; Class>] 
-        ProvidedMethodInfo = 
+    and [<AllowNullLiteral; Class>]
+        ProvidedMethodInfo =
+        new: x: System.Reflection.MethodInfo * ctxt: ProvidedTypeContext -> ProvidedMethodInfo
         inherit ProvidedMethodBase
-        member ReturnType : ProvidedType
-        member MetadataToken : int
+        abstract member ReturnType : ProvidedType
+        abstract member MetadataToken : int
 
-    and [<AllowNullLiteral; Sealed; Class>] 
-        ProvidedParameterInfo = 
-        member Name :string
-        member ParameterType : ProvidedType
-        member IsIn : bool
-        member IsOut : bool
-        member IsOptional : bool
-        member RawDefaultValue : obj
-        member HasDefaultValue : bool
+    and [<AllowNullLiteral; Class>] 
+        ProvidedParameterInfo =
+        new: x: System.Reflection.ParameterInfo * ctxt: ProvidedTypeContext -> ProvidedParameterInfo
+        abstract member Name :string
+        abstract member ParameterType : ProvidedType
+        abstract member IsIn : bool
+        abstract member IsOut : bool
+        abstract member IsOptional : bool
+        abstract member RawDefaultValue : obj
+        abstract member HasDefaultValue : bool
         interface IProvidedCustomAttributeProvider 
 
     and [<AllowNullLiteral; Class; Sealed>] 
@@ -195,15 +199,16 @@ module FSharp.Compiler.ExtensionTyping
         member IsPrivate : bool
         static member TaintedEquals : Tainted<ProvidedFieldInfo> * Tainted<ProvidedFieldInfo> -> bool 
 
-    and [<AllowNullLiteral; Class; Sealed>] 
-        ProvidedPropertyInfo = 
+    and [<AllowNullLiteral; Class>] 
+        ProvidedPropertyInfo =
+        new: x: System.Reflection.PropertyInfo * ctxt: ProvidedTypeContext -> ProvidedPropertyInfo
         inherit ProvidedMemberInfo
-        member GetGetMethod : unit -> ProvidedMethodInfo
-        member GetSetMethod : unit -> ProvidedMethodInfo
-        member GetIndexParameters : unit -> ProvidedParameterInfo[]
-        member CanRead : bool
-        member CanWrite : bool
-        member PropertyType : ProvidedType
+        abstract member GetGetMethod : unit -> ProvidedMethodInfo
+        abstract member GetSetMethod : unit -> ProvidedMethodInfo
+        abstract member GetIndexParameters : unit -> ProvidedParameterInfo[]
+        abstract member CanRead : bool
+        abstract member CanWrite : bool
+        abstract member PropertyType : ProvidedType
         static member TaintedGetHashCode : Tainted<ProvidedPropertyInfo> -> int
         static member TaintedEquals : Tainted<ProvidedPropertyInfo> * Tainted<ProvidedPropertyInfo> -> bool 
 
@@ -372,6 +377,7 @@ module FSharp.Compiler.ExtensionTyping
               * range -> Tainted<ITypeProvider> list
 
             abstract GetProvidedTypes : Tainted<IProvidedNamespace> * range -> Tainted<ProvidedType>[]
+            abstract ResolveTypeName : Tainted<IProvidedNamespace> * string * range -> Tainted<ProvidedType>
 
         [<Sealed>]
         type DefaultExtensionTypingProvider =
