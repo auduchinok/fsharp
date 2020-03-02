@@ -384,10 +384,13 @@ module FSharp.Compiler.ExtensionTyping
         default __.Namespace = x.Namespace
         abstract member FullName: string
         default __.FullName = x.FullName
-        member __.IsArray = x.IsArray
+        abstract member IsArray: bool
+        default __.IsArray = x.IsArray
         member __.Assembly = x.Assembly |> ProvidedAssembly.Create ctxt
-        member __.GetInterfaces() = x.GetInterfaces() |> ProvidedType.CreateArray ctxt
-        member __.GetMethods() = x.GetMethods bindingFlags |> ProvidedMethodInfo.CreateArray ctxt
+        abstract member GetInterfaces: unit -> ProvidedType[]
+        default __.GetInterfaces() = x.GetInterfaces() |> ProvidedType.CreateArray ctxt
+        abstract member GetMethods: unit -> ProvidedMethodInfo[]
+        default __.GetMethods() = x.GetMethods bindingFlags |> ProvidedMethodInfo.CreateArray ctxt
         member __.GetEvents() = x.GetEvents bindingFlags |> ProvidedEventInfo.CreateArray ctxt
         member __.GetEvent nm = x.GetEvent(nm, bindingFlags) |> ProvidedEventInfo.Create ctxt
         abstract member GetProperties: unit -> ProvidedPropertyInfo[]
@@ -465,7 +468,8 @@ module FSharp.Compiler.ExtensionTyping
         member __.TryGetILTypeRef() = ctxt.TryGetILTypeRef x
         member __.TryGetTyconRef() = ctxt.TryGetTyconRef x
         member __.Context = ctxt
-        static member ApplyContext (pt: ProvidedType, ctxt) = ProvidedType(pt.Handle, ctxt)
+        abstract member ApplyContext: ProvidedTypeContext -> ProvidedType
+        default pt.ApplyContext (ctxt) = ProvidedType(pt.Handle, ctxt)
         static member TaintedEquals (pt1: Tainted<ProvidedType>, pt2: Tainted<ProvidedType>) = 
            Tainted.EqTainted (pt1.PApplyNoFailure(fun st -> st.Handle)) (pt2.PApplyNoFailure(fun st -> st.Handle))
 

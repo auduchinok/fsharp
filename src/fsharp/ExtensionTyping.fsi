@@ -79,14 +79,14 @@ module FSharp.Compiler.ExtensionTyping
         abstract member IsGenericType : bool
         abstract member Namespace : string
         abstract member FullName : string
-        member IsArray : bool
-        member GetInterfaces : unit -> ProvidedType[]
+        abstract member IsArray : bool
+        abstract member GetInterfaces : unit -> ProvidedType[]
         member Assembly : ProvidedAssembly
         abstract member BaseType : ProvidedType
         abstract member GetNestedType : string -> ProvidedType
         abstract member GetNestedTypes : unit -> ProvidedType[]
         abstract member GetAllNestedTypes : unit -> ProvidedType[]
-        member GetMethods : unit -> ProvidedMethodInfo[]
+        abstract member GetMethods : unit -> ProvidedMethodInfo[]
         member GetFields : unit -> ProvidedFieldInfo[]
         member GetField : string -> ProvidedFieldInfo
         abstract member GetProperties : unit -> ProvidedPropertyInfo[]
@@ -119,7 +119,7 @@ module FSharp.Compiler.ExtensionTyping
         static member CreateNoContext : Type -> ProvidedType
         member TryGetILTypeRef : unit -> ILTypeRef option
         member TryGetTyconRef : unit -> obj option
-        static member ApplyContext : ProvidedType * ProvidedTypeContext -> ProvidedType
+        abstract member ApplyContext : ProvidedTypeContext -> ProvidedType
         member Context : ProvidedTypeContext 
         interface IProvidedCustomAttributeProvider
         static member TaintedEquals : Tainted<ProvidedType> * Tainted<ProvidedType> -> bool 
