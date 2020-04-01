@@ -20,6 +20,7 @@ open FSharp.Compiler.Lib
 open FSharp.Compiler.NameResolution
 open FSharp.Compiler.PrettyNaming
 open FSharp.Compiler.Range
+open FSharp.Compiler.SourceCodeServices.SymbolHelpers
 open FSharp.Compiler.TypedTree
 open FSharp.Compiler.TypedTreeOps
 
