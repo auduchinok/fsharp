@@ -15,17 +15,12 @@ open FSharp.Compiler.TypedTreeOps
 // Note: this type holds a weak reference to compiler resources. 
 type public FSharpDeclarationListItem =
     /// Get the display name for the declaration.
-    member Name : string
-
-    /// Get the name for the declaration as it's presented in source code.
-    member NameInCode : string
+    member Name: string
 
     /// Get the description text, asynchronously.  Never returns "Loading...".
     member StructuredDescriptionTextAsync : Async<FSharpStructuredToolTipText>
 
     member DescriptionTextAsync : Async<FSharpToolTipText>
-
-    member Glyph : FSharpGlyph
 
     member FSharpSymbol : FSharpSymbol
 
@@ -35,11 +30,9 @@ type public FSharpDeclarationListItem =
 
     member MinorPriority : int
 
-    member FullName : string
-
     member IsResolved : bool
 
-    member NamespaceToOpen : string option
+    member NamespaceToOpen : string[]
 
 
 [<Sealed>]
@@ -49,16 +42,14 @@ type public FSharpDeclarationListItem =
 // Note: this type holds a weak reference to compiler resources. 
 type public FSharpDeclarationListInfo =
 
-    member Items : FSharpDeclarationListItem[]
-
-    member IsForType : bool
+    member Items : FSharpDeclarationListItem seq
 
     member IsError : bool
 
     member DisplayContext: FSharpDisplayContext
 
     // Implementation details used by other code in the compiler    
-    static member internal Create : infoReader:InfoReader * m:range * denv:DisplayEnv * cenv: SymbolEnv * unresolvedOnly: bool * items:CompletionItem list * reactor:IReactorOperations * currentNamespace:string[] option * isAttributeApplicationContex:bool -> FSharpDeclarationListInfo
+    static member internal Create : infoReader:InfoReader * m:range * denv:DisplayEnv * cenv: SymbolEnv * unresolvedOnly: bool * items:CompletionItem list * reactor:IReactorOperations * isAttributeApplicationContex:bool -> FSharpDeclarationListInfo
 
     static member internal Error : message:string -> FSharpDeclarationListInfo
 

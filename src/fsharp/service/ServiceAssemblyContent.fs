@@ -315,10 +315,10 @@ module AssemblyContentProvider =
                           Namespace = ns
                           IsModule = entity.IsFSharpModule }
 
-                    match entity.TryGetMembersFunctionsAndValues with
-                    | xs when xs.Count > 0 ->
-                        yield! traverseMemberFunctionAndValues ns currentParent xs
-                    | _ -> ()
+//                    match entity.TryGetMembersFunctionsAndValues with
+//                    | xs when xs.Count > 0 ->
+//                        yield! traverseMemberFunctionAndValues ns currentParent xs
+//                    | _ -> ()
 
                     for e in (try entity.NestedEntities :> _ seq with _ -> Seq.empty) do
                         yield! traverseEntity contentType currentParent e 

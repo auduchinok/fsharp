@@ -931,12 +931,8 @@ type internal TypeCheckInfo
                 | Some (items, denv, ctx, m) ->
                     let items = if isInterfaceFile then items |> List.filter (fun x -> IsValidSignatureFileItem x.Item) else items
                     let denv = { denv with shortTypeNames = true }
-                    let currentNamespaceOrModule =
-                        parseResultsOpt
-                        |> Option.bind (fun x -> x.ParseTree)
-                        |> Option.map (fun parsedInput -> UntypedParseImpl.GetFullNameOfSmallestModuleOrNamespaceAtPoint(parsedInput, mkPos line 0))
                     let isAttributeApplication = ctx = Some CompletionContext.AttributeApplication
-                    FSharpDeclarationListInfo.Create(infoReader,m,denv,cenv, unresolvedOnly,items,reactorOps,currentNamespaceOrModule,isAttributeApplication))
+                    FSharpDeclarationListInfo.Create(infoReader,m,denv,cenv, unresolvedOnly,items,reactorOps,isAttributeApplication))
             (fun msg -> 
                 Trace.TraceInformation(sprintf "FCS: recovering from error in GetDeclarations: '%s'" msg)
                 FSharpDeclarationListInfo.Error msg)
@@ -1060,7 +1056,7 @@ type internal TypeCheckInfo
                 FSharpToolTipText [FSharpStructuredToolTipElement.CompositionError err])
 
     // GetToolTipText: return the "pop up" (or "Quick Info") text given a certain context.
-    member __.GetStructuredToolTipText(ctok, line, lineStr, colAtEndOfNames, names) = 
+    member __.GetStructuredToolTipText(ctok, line, lineStr, colAtEndOfNames, names) =  
         let Compute() = 
             ErrorScope.Protect Range.range0 
                 (fun () -> 
@@ -1782,6 +1778,15 @@ type FSharpCheckFileResults
         | _ -> 
             async.Return dflt
 
+//    member __.GetStructureToolTipText(fsSymbol: FSharpSymbol) =
+//        threadSafeOp
+//            (fun () -> [| |])
+//            (fun scope ->
+//                fsSymbol.Item
+//                FSharpToolTipText([FormatStructuredDescriptionOfItem false infoReader m denv x.ItemWithInst])
+//                ())
+//        scope.GetStructuredToolTipText(ctok, line, lineStr, colAtEndOfNames, names)
+    
     member info.GetToolTipText(line, colAtEndOfNames, lineStr, names, tokenTag, userOpName) = 
         info.GetStructuredToolTipText(line, colAtEndOfNames, lineStr, names, tokenTag, ?userOpName=userOpName)
         |> Tooltips.Map Tooltips.ToFSharpToolTipText
