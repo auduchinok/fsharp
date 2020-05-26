@@ -7,6 +7,7 @@ open System.Diagnostics
 open System.Globalization
 open System.Threading
 
+open FSharp.Compiler.SourceCodeServices
 open Internal.Utilities.Library
 open Internal.Utilities.Library.Extras
 
@@ -35,6 +36,9 @@ type internal ReactorCommands =
 type Reactor() = 
     static let pauseBeforeBackgroundWorkDefault = GetEnvInteger "FCS_PauseBeforeBackgroundWorkMilliseconds" 10
     static let theReactor = Reactor()
+
+    let mutable listener: IReactorListener = DefaultReactorListener() :> _
+
     let mutable pauseBeforeBackgroundWork = pauseBeforeBackgroundWorkDefault
 
     // We need to store the culture for the VS thread that is executing now, 
@@ -76,8 +80,8 @@ type Reactor() =
                                 | Some _, _ -> 
                                     let timeout = 
                                         if bg then 0 
-                                        else 
-                                            Trace.TraceInformation("Reactor: {0:n3} pausing {1} milliseconds", DateTime.Now.TimeOfDay.TotalSeconds, pauseBeforeBackgroundWork)
+                                        else
+                                            listener.OnReactorPauseBeforeBackgroundWork pauseBeforeBackgroundWork
                                             pauseBeforeBackgroundWork
                                     return! inbox.TryReceive(timeout) }
                     Thread.CurrentThread.CurrentUICulture <- culture
@@ -99,16 +103,14 @@ type Reactor() =
 
                     | Some (Op (userOpName, opName, opArg, ct, op, ccont)) -> 
                         if ct.IsCancellationRequested then ccont() else
-                        Trace.TraceInformation("Reactor: {0:n3} --> {1}.{2} ({3}), remaining {4}", DateTime.Now.TimeOfDay.TotalSeconds, userOpName, opName, opArg, inbox.CurrentQueueLength)
+                        listener.OnReactorOperationStart userOpName opName opArg inbox.CurrentQueueLength
                         let time = Stopwatch()
-                        time.Start()
-                        op ctok
-                        time.Stop()
-                        let span = time.Elapsed
-                        //if span.TotalMilliseconds > 100.0 then 
-                        let taken = span.TotalMilliseconds
-                        let msg = (if taken > 10000.0 then "BAD-OP: >10s " elif taken > 3000.0 then "BAD-OP: >3s " elif taken > 1000.0 then "BAD-OP: > 1s " elif taken > 500.0 then "BAD-OP: >0.5s " else "")
-                        Trace.TraceInformation("Reactor: {0:n3} {1}<-- {2}.{3}, took {4} ms", DateTime.Now.TimeOfDay.TotalSeconds, msg, userOpName, opName, span.TotalMilliseconds)
+                        try
+                            time.Start()
+                            op ctok
+                            time.Stop()
+                        finally
+                            listener.OnReactorOperationEnd userOpName opName opArg time.Elapsed
                         return! loop (bgOpOpt, onComplete, false)
 
                     | Some (WaitForBackgroundOpCompletion channel) -> 
@@ -140,21 +142,29 @@ type Reactor() =
                         match bgOpOpt, onComplete with 
                         | _, Some onComplete -> onComplete.Reply()
                         | Some  (bgUserOpName, bgOpName, bgOpArg, bgEv), None -> 
-                            Trace.TraceInformation("Reactor: {0:n3} --> background step {1}.{2} ({3})", DateTime.Now.TimeOfDay.TotalSeconds, bgUserOpName, bgOpName, bgOpArg)
+                            listener.OnReactorBackgroundStart bgUserOpName bgOpName bgOpArg
 
-                            // Force for a timeslice. If cancellation occurs we abandon the background work.
-                            let bgOpRes = 
-                                match Eventually.forceForTimeSlice sw maxTimeShareMilliseconds bgOpCts.Token bgEv with
-                                | ValueOrCancelled.Value cont -> cont
-                                | ValueOrCancelled.Cancelled _ -> Eventually.Done ()
+                            let time = Stopwatch()
+                            let bgOp2 =
+                                try
+                                    time.Start()
+                                    // Force for a timeslice. If cancellation occurs we abandon the background work.
+                                    let bgOpRes = 
+                                        match Eventually.forceForTimeSlice sw maxTimeShareMilliseconds bgOpCts.Token bgEv with
+                                        | ValueOrCancelled.Value cont -> cont
+                                        | ValueOrCancelled.Cancelled _ -> Eventually.Done ()
+                                    time.Stop()
 
-                            let bgOp2 = 
-                                match bgOpRes with 
-                                | _ when bgOpCts.IsCancellationRequested ->
-                                    Trace.TraceInformation("FCS: <-- background step {0}.{1}, was cancelled", bgUserOpName, bgOpName)
-                                    None
-                                | Eventually.Done () -> None
-                                | bgEv2 -> Some (bgUserOpName, bgOpName, bgOpArg, bgEv2)
+                                    let bgOp2 = 
+                                        match bgOpRes with 
+                                        | _ when bgOpCts.IsCancellationRequested ->
+                                            listener.OnReactorBackgroundCancelled bgUserOpName bgOpName bgOpArg
+                                            None
+                                        | Eventually.Done () -> None
+                                        | bgEv2 -> Some (bgUserOpName, bgOpName, bgOpArg, bgEv2)
+                                    bgOp2
+                                finally
+                                    listener.OnReactorBackgroundEnd bgUserOpName bgOpName bgOpArg time.Elapsed
 
                             //if span.TotalMilliseconds > 100.0 then 
                             //let msg = (if taken > 10000.0 then "BAD-BG-SLICE: >10s " elif taken > 3000.0 then "BAD-BG-SLICE: >3s " elif taken > 1000.0 then "BAD-BG-SLICE: > 1s " else "")
@@ -182,25 +192,28 @@ type Reactor() =
         | None -> ()
 
     // [Foreground Mailbox Accessors] -----------------------------------------------------------                
-    member _.SetBackgroundOp(bgOpOpt) = 
-        Trace.TraceInformation("Reactor: {0:n3} enqueue start background, length {1}", DateTime.Now.TimeOfDay.TotalSeconds, builder.CurrentQueueLength)
+    member _.SetBackgroundOp(bgOpOpt) =
+        listener.OnSetBackgroundOp builder.CurrentQueueLength
         lock gate (fun () -> bgOpCts.Cancel())
         builder.Post(SetBackgroundOp bgOpOpt)
 
     member _.CancelBackgroundOp() = 
-        Trace.TraceInformation("FCS: trying to cancel any active background work")
+        listener.OnCancelBackgroundOp()
         lock gate (fun () -> bgOpCts.Cancel())
 
     member _.EnqueueOp(userOpName, opName, opArg, op) =
-        Trace.TraceInformation("Reactor: {0:n3} enqueue {1}.{2} ({3}), length {4}", DateTime.Now.TimeOfDay.TotalSeconds, userOpName, opName, opArg, builder.CurrentQueueLength)
+        listener.OnEnqueueOp userOpName opName opArg builder.CurrentQueueLength
         builder.Post(Op(userOpName, opName, opArg, CancellationToken.None, op, (fun () -> ()))) 
 
     member _.EnqueueOpPrim(userOpName, opName, opArg, ct, op, ccont) =
-        Trace.TraceInformation("Reactor: {0:n3} enqueue {1}.{2} ({3}), length {4}", DateTime.Now.TimeOfDay.TotalSeconds, userOpName, opName, opArg, builder.CurrentQueueLength)
+        listener.OnEnqueueOp userOpName opName opArg builder.CurrentQueueLength
         builder.Post(Op(userOpName, opName, opArg, ct, op, ccont)) 
 
     member _.CurrentQueueLength =
         builder.CurrentQueueLength
+
+    member r.SetListener(newListener) =
+        listener <- newListener
 
     // This is for testing only
     member _.WaitForBackgroundOpCompletion() =

@@ -7,6 +7,7 @@ open System.Collections.Concurrent
 open System.Diagnostics
 open System.IO
 open System.Reflection
+open FSharp.Compiler.SourceCodeServices
 open Internal.Utilities.Collections
 open Internal.Utilities.Library
 open Internal.Utilities.Library.Extras
@@ -208,6 +209,7 @@ type ScriptClosureCacheToken() = interface LockToken
 type BackgroundCompiler(legacyReferenceResolver, projectCacheSize, keepAssemblyContents, keepAllBackgroundResolutions, tryGetMetadataSnapshot, suggestNamesForErrors, keepAllBackgroundSymbolUses, enableBackgroundItemKeyStoreAndSemanticClassification, enablePartialTypeChecking) as self =
     // STATIC ROOT: FSharpLanguageServiceTestable.FSharpChecker.backgroundCompiler.reactor: The one and only Reactor
     let reactor = Reactor.Singleton
+
     let beforeFileChecked = Event<string * FSharpProjectOptions>()
     let fileParsed = Event<string * FSharpProjectOptions>()
     let fileChecked = Event<string * FSharpProjectOptions>()
@@ -1069,7 +1071,7 @@ type FSharpChecker(legacyReferenceResolver,
     let maxMemEvent = new Event<unit>()
 
     /// Instantiate an interactive checker.    
-    static member Create(?projectCacheSize, ?keepAssemblyContents, ?keepAllBackgroundResolutions, ?legacyReferenceResolver, ?tryGetMetadataSnapshot, ?suggestNamesForErrors, ?keepAllBackgroundSymbolUses, ?enableBackgroundItemKeyStoreAndSemanticClassification, ?enablePartialTypeChecking) = 
+    static member Create(?projectCacheSize, ?keepAssemblyContents, ?keepAllBackgroundResolutions, ?legacyReferenceResolver, ?tryGetMetadataSnapshot, ?suggestNamesForErrors, ?keepAllBackgroundSymbolUses, ?enableBackgroundItemKeyStoreAndSemanticClassification, ?enablePartialTypeChecking, ?reactorListener: IReactorListener) = 
 
         let legacyReferenceResolver = 
             match legacyReferenceResolver with
@@ -1087,6 +1089,10 @@ type FSharpChecker(legacyReferenceResolver,
 
         if keepAssemblyContents && enablePartialTypeChecking then
             invalidArg "enablePartialTypeChecking" "'keepAssemblyContents' and 'enablePartialTypeChecking' cannot be both enabled."
+
+        match reactorListener with
+        | None -> ()
+        | Some reactorListener -> Reactor.Singleton.SetListener reactorListener
 
         FSharpChecker(legacyReferenceResolver,
             projectCacheSizeReal,
