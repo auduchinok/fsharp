@@ -3,6 +3,7 @@
 namespace FSharp.Compiler.CodeAnalysis
 
 open System.Threading
+open FSharp.Compiler.SourceCodeServices
 open Internal.Utilities.Library
 
 /// Represents the capability to schedule work in the compiler service operations queue for the compilation thread
@@ -44,6 +45,9 @@ type internal Reactor =
 
     /// For debug purposes
     member CurrentQueueLength : int
+
+    /// Override the current reactor event listener.
+    member SetListener : IReactorListener -> unit
 
     /// Put the operation in the queue, and return an async handle to its result. 
     member EnqueueAndAwaitOpAsync : userOpName:string * opName:string * opArg:string * (CompilationThreadToken -> Cancellable<'T>) -> Async<'T>
