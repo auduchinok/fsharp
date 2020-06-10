@@ -1082,6 +1082,10 @@ type internal TypeCheckInfo
     member scope.IsRelativeNameResolvableFromSymbol(cursorPos: pos, plid: string list, symbol: FSharpSymbol) : bool =
         scope.IsRelativeNameResolvable(cursorPos, plid, symbol.Item)
 
+    member scope.TryGetExpressionType(range) =
+        sResolutions.CapturedExpressionTypings 
+        |> Seq.tryFind (fun (_, _, _, m) -> equals m range)
+        |> Option.map (fun (ty, _, _, _) -> FSharpType (cenv, ty))
     /// Get the auto-complete items at a location
     member _.GetDeclarations (parseResultsOpt, line, lineStr, partialName, getAllEntities) =
         let isInterfaceFile = SourceFileImpl.IsInterfaceFile mainInputFileName
@@ -1942,6 +1946,11 @@ type FSharpCheckFileResults
         match details with
         | None -> None
         | Some (scope, _builderOpt) -> Some scope.TcImports
+
+    member __.GetTypeOfExpression(range: range) =
+        threadSafeOp
+            (fun () -> None)
+            (fun scope -> scope.TryGetExpressionType(range))
 
     /// Intellisense autocompletions
     member _.GetDeclarationListInfo(parsedFileResults, line, lineText, partialName, ?getAllEntities) =
