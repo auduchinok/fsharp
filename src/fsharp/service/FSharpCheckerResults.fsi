@@ -118,6 +118,8 @@ type public FSharpCheckFileResults =
     /// in the documentation for compiler service.
     member DependencyFiles : string[]
 
+    member GetTypeOfExpression: range -> FSharpType option
+
     /// <summary>Get the items for a declaration list</summary>
     ///
     /// <param name="parsedFileResults">
