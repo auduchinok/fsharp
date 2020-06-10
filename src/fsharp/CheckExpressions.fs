@@ -7325,12 +7325,11 @@ and PropagateThenTcDelayed cenv overallTy env tpenv mExpr expr exprty (atomicFla
 
 /// Typecheck "expr ... " constructs where "..." is a sequence of applications,
 /// type applications and dot-notation projections.
-and TcDelayed cenv overallTy env tpenv mExpr expr exprty (atomicFlag: ExprAtomicFlag) delayed =
+and TcDelayed cenv overallTy env tpenv mExpr expr exprty (_atomicFlag: ExprAtomicFlag) delayed =
 
     // OK, we've typechecked the thing on the left of the delayed lookup chain.
     // We can now record for posterity the type of this expression and the location of the expression.
-    if (atomicFlag = ExprAtomicFlag.Atomic) then
-        CallExprHasTypeSink cenv.tcSink (mExpr, env.NameEnv, exprty, env.eAccessRights)
+    CallExprHasTypeSink cenv.tcSink (mExpr, env.NameEnv, exprty, env.eAccessRights)
 
     match delayed with
     | []
