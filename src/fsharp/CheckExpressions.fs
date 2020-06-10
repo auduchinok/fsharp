@@ -4743,6 +4743,7 @@ and TcSimplePat optArgsOK checkCxs cenv ty env (tpenv, names, takenNames) p =
 
     | SynSimplePat.Typed (p, cty, m) ->
         let cty', tpenv = TcTypeAndRecover cenv NewTyparsOK checkCxs ItemOccurence.UseInType env tpenv cty
+        CallExprHasTypeSink cenv.tcSink (p.Range, env.NameEnv, cty', env.AccessRights)
         match p with
         // Optional arguments on members
         | SynSimplePat.Id(_, _, _, _, true, _) -> UnifyTypes cenv env m ty (mkOptionTy cenv.g cty')
@@ -4893,6 +4894,7 @@ and TcPat warnOnUpper cenv env topValInfo vFlags (tpenv, names, takenNames) ty p
                 (fun _ -> TPat_error m), (tpenv, names, takenNames)
 
     | SynPat.Wild m ->
+        CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, ty, env.AccessRights)
         (fun _ -> TPat_wild m), (tpenv, names, takenNames)
 
     | SynPat.IsInst(cty, m)
@@ -5087,6 +5089,7 @@ and TcPat warnOnUpper cenv env topValInfo vFlags (tpenv, names, takenNames) ty p
         | Item.UnionCase _ | Item.ExnCase _ as item ->
             // Report information about the case occurrence to IDE
             CallNameResolutionSink cenv.tcSink (lidRange, env.NameEnv, item, emptyTyparInst, ItemOccurence.Pattern, env.eAccessRights)
+            CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, ty, env.AccessRights)
 
             let mkf, argTys, argNames = ApplyUnionCaseOrExnTypesForPat m cenv env ty item
             let numArgTys = argTys.Length
@@ -5445,7 +5448,9 @@ and TcExprThen cenv (overallTy: OverallTy) env tpenv isArg synExpr delayed =
         match altNameRefCellOpt with
         | Some {contents = SynSimplePatAlternativeIdInfo.Decided altId} -> 
             TcExprThen cenv overallTy env tpenv isArg (SynExpr.LongIdent (isOpt, LongIdentWithDots([altId], []), None, mLongId)) delayed
-        | _ -> TcLongIdentThen cenv overallTy env tpenv longId delayed
+        | _ ->
+            CallExprHasTypeSink cenv.tcSink (mLongId, env.NameEnv, overallTy.Commit, env.AccessRights)
+            TcLongIdentThen cenv overallTy env tpenv longId delayed
 
     // f x
     // f(x)  // hpa=true
@@ -5654,7 +5659,8 @@ and TcExprUndelayed cenv (overallTy: OverallTy) env tpenv (synExpr: SynExpr) =
         CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, overallTy.Commit, env.AccessRights)
         TcConstExpr cenv overallTy env m tpenv synConst
 
-    | SynExpr.Lambda _ ->
+    | SynExpr.Lambda (range = m) ->
+        CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, overallTy.Commit, env.AccessRights)
         TcIteratedLambdas cenv true env overallTy Set.empty tpenv synExpr
 
     | SynExpr.Match (spMatch, synInputExpr, synClauses, _m) ->
@@ -7710,12 +7716,11 @@ and PropagateThenTcDelayed cenv (overallTy: OverallTy) env tpenv mExpr expr expr
 
 /// Typecheck "expr ... " constructs where "..." is a sequence of applications,
 /// type applications and dot-notation projections.
-and TcDelayed cenv (overallTy: OverallTy) env tpenv mExpr expr exprty (atomicFlag: ExprAtomicFlag) delayed =
+and TcDelayed cenv (overallTy: OverallTy) env tpenv mExpr expr exprty (_atomicFlag: ExprAtomicFlag) delayed =
 
     // OK, we've typechecked the thing on the left of the delayed lookup chain.
     // We can now record for posterity the type of this expression and the location of the expression.
-    if (atomicFlag = ExprAtomicFlag.Atomic) then
-        CallExprHasTypeSink cenv.tcSink (mExpr, env.NameEnv, exprty, env.eAccessRights)
+    CallExprHasTypeSink cenv.tcSink (mExpr, env.NameEnv, exprty, env.eAccessRights)
 
     match delayed with
     | []
