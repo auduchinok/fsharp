@@ -4812,6 +4812,7 @@ and TcPat warnOnUpper cenv env topValInfo vFlags (tpenv, names, takenNames) ty p
                 (fun _ -> TPat_error m), (tpenv, names, takenNames)
 
     | SynPat.Wild m ->
+        CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, ty, env.AccessRights)
         (fun _ -> TPat_wild m), (tpenv, names, takenNames)
 
     | SynPat.IsInst(cty, m)
