@@ -205,11 +205,11 @@ type ValFlags(flags: int64) =
 
     member x.WithRecursiveValInfo recValInfo = 
             let flags = 
-                     (flags       &&&                                    ~~~0b00000001100000000000L) |||
-                     (match recValInfo with
-                                     | ValNotInRecScope     ->              0b00000000000000000000L
-                                     | ValInRecScope true  ->               0b00000000100000000000L
-                                     | ValInRecScope false ->               0b00000001000000000000L) 
+                     (flags       &&&                                     ~~~0b00000001100000000000L) |||
+                     (match recValInfo with 
+                                     | ValNotInRecScope     ->               0b00000000000000000000L
+                                     | ValInRecScope true  ->                0b00000000100000000000L
+                                     | ValInRecScope false ->                0b00000001000000000000L) 
             ValFlags flags
 
     member x.MakesNoCriticalTailcalls         =                   (flags &&& 0b00000010000000000000L) <> 0L
@@ -2505,7 +2505,9 @@ type Val =
       /// See vflags section further below for encoding/decodings here
       mutable val_flags: ValFlags
 
-      mutable val_opt_data: ValOptionalData option }
+      mutable val_opt_data: ValOptionalData option
+      
+      mutable val_is_param : bool }
 
     static member NewEmptyValOptData() =
         { val_compiled_name = None
@@ -2624,6 +2626,9 @@ type Val =
         | Some optData -> optData.val_member_info
         | _ -> None
 
+    member x.IsFunctionParameter =
+        x.val_is_param
+    
     /// Indicates if this is a member
     member x.IsMember = x.MemberInfo.IsSome
 
@@ -2944,7 +2949,8 @@ type Val =
           val_type = Unchecked.defaultof<_>
           val_stamp = Unchecked.defaultof<_>
           val_flags = Unchecked.defaultof<_>
-          val_opt_data = Unchecked.defaultof<_> }
+          val_opt_data = Unchecked.defaultof<_>
+          val_is_param = Unchecked.defaultof<_> }
 
 
     /// Create a new value with the given backing data. Only used during unpickling of F# metadata.
@@ -3669,6 +3675,8 @@ type ValRef =
 
     member x.Id = x.Deref.Id
 
+    member x.IsFunctionParameter = x.Deref.IsFunctionParameter
+    
     /// Get the name of the value, assuming it is compiled as a property.
     ///   - If this is a property then this is 'Foo' 
     ///   - If this is an implementation of an abstract slot then this is the name of the property implemented by the abstract slot
@@ -5550,7 +5558,7 @@ type Construct() =
            (logicalName: string, m: range, compiledName, ty, isMutable, isCompGen, arity, access,
             recValInfo, specialRepr, baseOrThis, attribs, inlineInfo, doc, isModuleOrMemberBinding,
             isExtensionMember, isIncrClassSpecialMember, isTyFunc, allowTypeInst, isGeneratedEventVal,
-            konst, actualParent) : Val =
+            konst, actualParent, isParam) : Val =
 
         let stamp = newStamp()
         Val.New {
@@ -5559,6 +5567,7 @@ type Construct() =
             val_range = m
             val_flags = ValFlags(recValInfo, baseOrThis, isCompGen, inlineInfo, isMutable, isModuleOrMemberBinding, isExtensionMember, isIncrClassSpecialMember, isTyFunc, allowTypeInst, isGeneratedEventVal)
             val_type = ty
+            val_is_param = isParam
             val_opt_data =
                 match compiledName, arity, konst, access, doc, specialRepr, actualParent, attribs with
                 | None, None, None, TAccess [], XmlDoc [||], None, ParentNone, [] -> None

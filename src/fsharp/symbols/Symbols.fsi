@@ -689,6 +689,8 @@ and [<Class>] public FSharpMemberOrFunctionOrValue =
     internal new : SymbolEnv * ValRef -> FSharpMemberOrFunctionOrValue
     internal new : SymbolEnv * Infos.MethInfo -> FSharpMemberOrFunctionOrValue
 
+    member IsFunctionParameter : bool
+    
     /// Indicates if the member, function or value is in an unresolved assembly 
     member IsUnresolved : bool
 
