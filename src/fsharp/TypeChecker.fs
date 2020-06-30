@@ -1557,7 +1557,7 @@ let MakeAndPublishBaseVal cenv env baseIdOpt ty =
     baseIdOpt
     |> Option.map (fun (id: Ident) ->
        let valscheme = ValScheme(id, NonGenericTypeScheme ty, None, None, false, ValInline.Never, BaseVal, None, false, false, false, false)
-       MakeAndPublishVal cenv env (ParentNone, false, ExpressionBinding, ValNotInRecScope, valscheme, [], XmlDoc.Empty, None, false, false))
+       MakeAndPublishVal cenv env (ParentNone, false, ExpressionBinding, ValNotInRecScope, valscheme, [], XmlDoc.Empty, None, false, NonParam))
 
 let InstanceMembersNeedSafeInitCheck cenv m thisTy = 
     ExistsInEntireHierarchyOfType 
@@ -1595,7 +1595,7 @@ let MakeAndPublishSafeThisVal cenv env (thisIdOpt: Ident option) thisTy =
             errorR(Error(FSComp.SR.tcStructsCanOnlyBindThisAtMemberDeclaration(), thisId.idRange))
 
         let valScheme = ValScheme(thisId, NonGenericTypeScheme(mkRefCellTy cenv.g thisTy), None, None, false, ValInline.Never, CtorThisVal, None, false, false, false, false)
-        Some(MakeAndPublishVal cenv env (ParentNone, false, ExpressionBinding, ValNotInRecScope, valScheme, [], XmlDoc.Empty, None, false, false))
+        Some(MakeAndPublishVal cenv env (ParentNone, false, ExpressionBinding, ValNotInRecScope, valScheme, [], XmlDoc.Empty, None, false, NonParam))
 
     | None -> 
         None 
@@ -1861,10 +1861,10 @@ let MakeAndPublishSimpleVals cenv env names isParam =
 /// into scope simultaneously. The technique used to do this is a disturbing and unfortunate hack that
 /// intercepts `NotifyNameResolution` calls being emitted by `MakeAndPublishSimpleVals`
 
-let MakeAndPublishSimpleValsForMergedScope cenv env m (names: NameMap<_>) =
+let MakeAndPublishSimpleValsForMergedScope cenv env m (names: NameMap<_>) valParamInfo =
     let values, vspecMap = 
         if names.Count <= 1 then 
-            MakeAndPublishSimpleVals cenv env names true
+            MakeAndPublishSimpleVals cenv env names valParamInfo
         else
             let nameResolutions = ResizeArray()
 
@@ -1890,7 +1890,7 @@ let MakeAndPublishSimpleValsForMergedScope cenv env m (names: NameMap<_>) =
                         member this.FormatStringCheckContext = None } 
 
                 use _h = WithNewTypecheckResultsSink(sink, cenv.tcSink)
-                MakeAndPublishSimpleVals cenv env names true
+                MakeAndPublishSimpleVals cenv env names valParamInfo
     
             if nameResolutions.Count <> 0 then 
                 let (_, _, _, _, _, _, ad, m1, _replacing) = nameResolutions.[0]
@@ -5912,7 +5912,7 @@ and TcExprUndelayed cenv overallTy env tpenv (synExpr: SynExpr) =
         TcConstExpr cenv overallTy env m tpenv synConst
 
     | SynExpr.Lambda _ -> 
-        TcIteratedLambdas cenv true env overallTy Set.empty tpenv synExpr
+        TcIteratedLambdas cenv true env overallTy Set.empty tpenv synExpr TopLevelParam
 
     | SynExpr.Match (spMatch, synInputExpr, synClauses, _m) ->
 
@@ -6351,15 +6351,15 @@ and TcExprUndelayed cenv overallTy env tpenv (synExpr: SynExpr) =
         error(Error(FSComp.SR.tcConstructRequiresComputationExpression(), m))
 
 /// Check lambdas as a group, to catch duplicate names in patterns
-and TcIteratedLambdas cenv isFirst (env: TcEnv) overallTy takenNames tpenv e = 
+and TcIteratedLambdas cenv isFirst (env: TcEnv) overallTy takenNames tpenv e valParamInfo = 
     match e with 
     | SynExpr.Lambda (isMember, isSubsequent, spats, bodyExpr, m) when isMember || isFirst || isSubsequent ->
         let domainTy, resultTy = UnifyFunctionType None cenv env.DisplayEnv m overallTy
         let vs, (tpenv, names, takenNames) = TcSimplePats cenv isMember CheckCxs domainTy env (tpenv, Map.empty, takenNames) spats
-        let envinner, _, vspecMap = MakeAndPublishSimpleValsForMergedScope cenv env m names 
+        let envinner, _, vspecMap = MakeAndPublishSimpleValsForMergedScope cenv env m names valParamInfo 
         let byrefs = vspecMap |> Map.map (fun _ v -> isByrefTy cenv.g v.Type, v)
         let envinner = if isMember then envinner else ExitFamilyRegion envinner
-        let bodyExpr, tpenv = TcIteratedLambdas cenv false envinner resultTy takenNames tpenv bodyExpr
+        let bodyExpr, tpenv = TcIteratedLambdas cenv false envinner resultTy takenNames tpenv bodyExpr valParamInfo
         // See bug 5758: Non-monotonicity in inference: need to ensure that parameters are never inferred to have byref type, instead it is always declared
         byrefs |> Map.iter (fun _ (orig, v) -> 
             if not orig && isByrefTy cenv.g v.Type then errorR(Error(FSComp.SR.tcParameterInferredByref v.DisplayName, v.Range)))
@@ -10946,7 +10946,7 @@ and TcAndPatternCompileMatchClauses mExpr matchm actionOnFailure cenv inputExprO
 and TcMatchPattern cenv inputTy env tpenv (pat: SynPat, optWhenExpr) =
     let m = pat.Range
     let patf', (tpenv, names, _) = TcPat WarnOnUpperCase cenv env None (ValInline.Optional, permitInferTypars, noArgOrRetAttribs, false, None, false) (tpenv, Map.empty, Set.empty) inputTy pat
-    let envinner, values, vspecMap = MakeAndPublishSimpleValsForMergedScope cenv env m names 
+    let envinner, values, vspecMap = MakeAndPublishSimpleValsForMergedScope cenv env m names NestedScopeParam
     let optWhenExpr', tpenv = 
         match optWhenExpr with
         | Some whenExpr ->
@@ -11530,7 +11530,7 @@ and TcLetBinding cenv isUse env containerInfo declKind tpenv (synBinds, synBinds
         // on all other paths. 
         let tpenv = HideUnscopedTypars generalizedTypars tpenv
         let valSchemes = NameMap.map (UseCombinedArity cenv.g declKind rhsExpr) prelimValSchemes2
-        let values = MakeAndPublishVals cenv env (altActualParent, false, declKind, ValNotInRecScope, valSchemes, attrs, doc, konst, false)
+        let values = MakeAndPublishVals cenv env (altActualParent, false, declKind, ValNotInRecScope, valSchemes, attrs, doc, konst, NonParam)
         let checkedPat = tcPatPhase2 (TcPatPhase2Input (values, true))
         let prelimRecValues = NameMap.map fst values
         
@@ -12092,7 +12092,7 @@ and AnalyzeAndMakeAndPublishRecursiveValue overridesOK isGeneratedEventVal cenv 
        List.concat extraBindings, List.concat extraValues, tpenv, recBindIdx
     
     // Create the value 
-    let vspec = MakeAndPublishVal cenv envinner (altActualParent, false, declKind, ValInRecScope isComplete, prelimValScheme, bindingAttribs, bindingXmlDoc, konst, isGeneratedEventVal, false)
+    let vspec = MakeAndPublishVal cenv envinner (altActualParent, false, declKind, ValInRecScope isComplete, prelimValScheme, bindingAttribs, bindingXmlDoc, konst, isGeneratedEventVal, NonParam)
 
     // Suppress hover tip for "get" and "set" at property definitions, where toolId <> bindingId
     match toolIdOpt with 
@@ -12690,7 +12690,7 @@ let TcAndPublishValSpec (cenv, env, containerInfo: ContainerInfo, declKind, memF
                         errorR(Error(FSComp.SR.tcValueInSignatureRequiresLiteralAttribute(), e.Range))
                     konst
 
-            let vspec = MakeAndPublishVal cenv env (altActualParent, true, declKind, ValNotInRecScope, valscheme, attrs, doc.ToXmlDoc(), konst, false, false)
+            let vspec = MakeAndPublishVal cenv env (altActualParent, true, declKind, ValNotInRecScope, valscheme, attrs, doc.ToXmlDoc(), konst, false, NonParam)
             assert(vspec.InlineInfo = inlineFlag)
 
             vspec, tpenv)
@@ -13034,7 +13034,7 @@ module IncrClassChecking =
         let ctorArgNames, (_, names, _) = TcSimplePatsOfUnknownType cenv true CheckCxs env tpenv (SynSimplePats.SimplePats (spats, m))
         
         // Create the values with the given names 
-        let _, vspecs = MakeAndPublishSimpleVals cenv env names false
+        let _, vspecs = MakeAndPublishSimpleVals cenv env names NonParam
 
         if tcref.IsStructOrEnumTycon && isNil spats then 
             errorR (ParameterlessStructCtor(tcref.Range))
@@ -13064,7 +13064,7 @@ module IncrClassChecking =
             let isComplete = ComputeIsComplete copyOfTyconTypars [] ctorTy
             let topValInfo = InferGenericArityFromTyScheme prelimTyschemeG partialValReprInfo
             let ctorValScheme = ValScheme(id, prelimTyschemeG, Some topValInfo, Some memberInfo, false, ValInline.Never, NormalVal, vis, false, true, false, false)
-            let ctorVal = MakeAndPublishVal cenv env (Parent tcref, false, ModuleOrMemberBinding, ValInRecScope isComplete, ctorValScheme, attribs, XmlDoc.Empty, None, false, false) 
+            let ctorVal = MakeAndPublishVal cenv env (Parent tcref, false, ModuleOrMemberBinding, ValInRecScope isComplete, ctorValScheme, attribs, XmlDoc.Empty, None, false, NonParam) 
             ctorValScheme, ctorVal
 
         // We only generate the cctor on demand, because we don't need it if there are no cctor actions. 
@@ -13084,14 +13084,14 @@ module IncrClassChecking =
                 let topValInfo = InferGenericArityFromTyScheme prelimTyschemeG partialValReprInfo
                 let cctorValScheme = ValScheme(id, prelimTyschemeG, Some topValInfo, Some memberInfo, false, ValInline.Never, NormalVal, Some SynAccess.Private, false, true, false, false)
                  
-                let cctorVal = MakeAndPublishVal cenv env (Parent tcref, false, ModuleOrMemberBinding, ValNotInRecScope, cctorValScheme, [(* no attributes*)], XmlDoc.Empty, None, false, false) 
+                let cctorVal = MakeAndPublishVal cenv env (Parent tcref, false, ModuleOrMemberBinding, ValNotInRecScope, cctorValScheme, [(* no attributes*)], XmlDoc.Empty, None, false, NonParam) 
                 cctorArgs, cctorVal, cctorValScheme)
 
         let thisVal = 
             // --- Create this for use inside constructor 
             let thisId = ident ("this", m)
             let thisValScheme = ValScheme(thisId, NonGenericTypeScheme thisTy, None, None, false, ValInline.Never, CtorThisVal, None, true, false, false, false)
-            let thisVal = MakeAndPublishVal cenv env (ParentNone, false, ClassLetBinding false, ValNotInRecScope, thisValScheme, [], XmlDoc.Empty, None, false, false)
+            let thisVal = MakeAndPublishVal cenv env (ParentNone, false, ClassLetBinding false, ValNotInRecScope, thisValScheme, [], XmlDoc.Empty, None, false, NonParam)
             thisVal
 
         {TyconRef = tcref
@@ -13256,7 +13256,7 @@ module IncrClassChecking =
                                           
                     let prelimTyschemeG = TypeScheme(copyOfTyconTypars@tps, memberTauTy)
                     let memberValScheme = ValScheme(id, prelimTyschemeG, Some topValInfo, Some memberInfo, false, ValInline.Never, NormalVal, None, true (* isCompilerGenerated *), true (* isIncrClass *), false, false)
-                    let methodVal = MakeAndPublishVal cenv env (Parent tcref, false, ModuleOrMemberBinding, ValNotInRecScope, memberValScheme, v.Attribs, XmlDoc.Empty, None, false, false) 
+                    let methodVal = MakeAndPublishVal cenv env (Parent tcref, false, ModuleOrMemberBinding, ValNotInRecScope, memberValScheme, v.Attribs, XmlDoc.Empty, None, false, NonParam) 
                     reportIfUnused()
                     InMethod(isStatic, methodVal, topValInfo)
 

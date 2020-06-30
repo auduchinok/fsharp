@@ -1642,9 +1642,19 @@ and FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
         | E _ -> true
         | _ -> false
 
-    member __.IsFunctionParameter =
+    member __.IsParameter =
         match d with
-        | V v -> v.IsFunctionParameter
+        | V v -> v.IsParam
+        | _ -> false
+        
+    member __.IsTopLevelParameter =
+        match d with
+        | V v -> v.IsTopLevelParam
+        | _ -> false
+        
+    member __.IsNestedScopeParameter =
+        match d with
+        | V v -> v.IsNestedScopeParam
         | _ -> false
     
     member x.EventForFSharpProperty = 

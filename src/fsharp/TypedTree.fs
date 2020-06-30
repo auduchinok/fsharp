@@ -96,7 +96,7 @@ type ValBaseOrThisInfo =
 
     /// Indicates the 'this' value specified in a memberm e.g. 'x' in 'member x.M() = 1'
     | MemberThisVal 
-
+    
 [<Struct>]
 /// Flags on values
 type ValFlags(flags: int64) = 
@@ -243,6 +243,26 @@ type ValFlags(flags: int64) =
         // Clear the HasBeenReferenced, only used to report "unreferenced variable" warnings and to help collect 'it' values in FSI.EXE
         // Clear the IsGeneratedEventVal, since there's no use in propagating specialname information for generated add/remove event vals
                                                       (flags       &&&    ~~~0b10011001100000000000L) 
+
+type ValParamInfo =
+     | NonParam
+     | TopLevelParam
+     | NestedScopeParam
+    
+[<Struct>]
+type ValFlags2 (flags : int64) =
+    new (valParamInfo) =
+        let flags =
+            0L |||
+            (match valParamInfo with
+             | NonParam -> 0L
+             | TopLevelParam -> 0b00000000000000000001L
+             | NestedScopeParam -> 0b00000000000000000010L)
+        ValFlags2 flags
+        
+    member _.IsTopLevelParam = flags &&& 0b00000000000000000001L = 0b00000000000000000001L
+    member _.IsNestedScopeParam = flags &&& 0b00000000000000000010L = 0b00000000000000000010L
+    member x.IsParam = x.IsTopLevelParam || x.IsNestedScopeParam
 
 /// Represents the kind of a type parameter
 [<RequireQualifiedAccess (* ; StructuredFormatDisplay("{DebugText}") *) >]
@@ -2504,10 +2524,10 @@ type Val =
 
       /// See vflags section further below for encoding/decodings here
       mutable val_flags: ValFlags
-
-      mutable val_opt_data: ValOptionalData option
-      
-      mutable val_is_param : bool }
+        
+      mutable val_flags_2 : ValFlags2
+        
+      mutable val_opt_data: ValOptionalData option }
 
     static member NewEmptyValOptData() =
         { val_compiled_name = None
@@ -2626,8 +2646,14 @@ type Val =
         | Some optData -> optData.val_member_info
         | _ -> None
 
-    member x.IsFunctionParameter =
-        x.val_is_param
+    member x.IsParam =
+        x.val_flags_2.IsParam
+        
+    member x.IsTopLevelParam =
+       x.val_flags_2.IsTopLevelParam
+        
+    member x.IsNestedScopeParam =
+       x.val_flags_2.IsNestedScopeParam
     
     /// Indicates if this is a member
     member x.IsMember = x.MemberInfo.IsSome
@@ -2949,9 +2975,8 @@ type Val =
           val_type = Unchecked.defaultof<_>
           val_stamp = Unchecked.defaultof<_>
           val_flags = Unchecked.defaultof<_>
-          val_opt_data = Unchecked.defaultof<_>
-          val_is_param = Unchecked.defaultof<_> }
-
+          val_flags_2 = Unchecked.defaultof<_>
+          val_opt_data = Unchecked.defaultof<_> }
 
     /// Create a new value with the given backing data. Only used during unpickling of F# metadata.
     static member New data: Val = data
@@ -3675,7 +3700,9 @@ type ValRef =
 
     member x.Id = x.Deref.Id
 
-    member x.IsFunctionParameter = x.Deref.IsFunctionParameter
+    member x.IsParam = x.Deref.IsParam
+    member x.IsTopLevelParam = x.Deref.IsTopLevelParam
+    member x.IsNestedScopeParam = x.Deref.IsNestedScopeParam
     
     /// Get the name of the value, assuming it is compiled as a property.
     ///   - If this is a property then this is 'Foo' 
@@ -5558,7 +5585,7 @@ type Construct() =
            (logicalName: string, m: range, compiledName, ty, isMutable, isCompGen, arity, access,
             recValInfo, specialRepr, baseOrThis, attribs, inlineInfo, doc, isModuleOrMemberBinding,
             isExtensionMember, isIncrClassSpecialMember, isTyFunc, allowTypeInst, isGeneratedEventVal,
-            konst, actualParent, isParam) : Val =
+            konst, actualParent, valParamInfo : ValParamInfo) : Val =
 
         let stamp = newStamp()
         Val.New {
@@ -5567,7 +5594,7 @@ type Construct() =
             val_range = m
             val_flags = ValFlags(recValInfo, baseOrThis, isCompGen, inlineInfo, isMutable, isModuleOrMemberBinding, isExtensionMember, isIncrClassSpecialMember, isTyFunc, allowTypeInst, isGeneratedEventVal)
             val_type = ty
-            val_is_param = isParam
+            val_flags_2 = ValFlags2(valParamInfo)
             val_opt_data =
                 match compiledName, arity, konst, access, doc, specialRepr, actualParent, attribs with
                 | None, None, None, TAccess [], XmlDoc [||], None, ParentNone, [] -> None
