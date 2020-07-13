@@ -5912,7 +5912,7 @@ and TcExprUndelayed cenv overallTy env tpenv (synExpr: SynExpr) =
         TcConstExpr cenv overallTy env m tpenv synConst
 
     | SynExpr.Lambda _ -> 
-        TcIteratedLambdas cenv true env overallTy Set.empty tpenv synExpr TopLevelParam
+        TcIteratedLambdas cenv true env overallTy Set.empty tpenv synExpr
 
     | SynExpr.Match (spMatch, synInputExpr, synClauses, _m) ->
 
@@ -6351,15 +6351,15 @@ and TcExprUndelayed cenv overallTy env tpenv (synExpr: SynExpr) =
         error(Error(FSComp.SR.tcConstructRequiresComputationExpression(), m))
 
 /// Check lambdas as a group, to catch duplicate names in patterns
-and TcIteratedLambdas cenv isFirst (env: TcEnv) overallTy takenNames tpenv e valParamInfo = 
+and TcIteratedLambdas cenv isFirst (env: TcEnv) overallTy takenNames tpenv e = 
     match e with 
     | SynExpr.Lambda (isMember, isSubsequent, spats, bodyExpr, m) when isMember || isFirst || isSubsequent ->
         let domainTy, resultTy = UnifyFunctionType None cenv env.DisplayEnv m overallTy
         let vs, (tpenv, names, takenNames) = TcSimplePats cenv isMember CheckCxs domainTy env (tpenv, Map.empty, takenNames) spats
-        let envinner, _, vspecMap = MakeAndPublishSimpleValsForMergedScope cenv env m names valParamInfo 
+        let envinner, _, vspecMap = MakeAndPublishSimpleValsForMergedScope cenv env m names TopLevelParam 
         let byrefs = vspecMap |> Map.map (fun _ v -> isByrefTy cenv.g v.Type, v)
         let envinner = if isMember then envinner else ExitFamilyRegion envinner
-        let bodyExpr, tpenv = TcIteratedLambdas cenv false envinner resultTy takenNames tpenv bodyExpr valParamInfo
+        let bodyExpr, tpenv = TcIteratedLambdas cenv false envinner resultTy takenNames tpenv bodyExpr
         // See bug 5758: Non-monotonicity in inference: need to ensure that parameters are never inferred to have byref type, instead it is always declared
         byrefs |> Map.iter (fun _ (orig, v) -> 
             if not orig && isByrefTy cenv.g v.Type then errorR(Error(FSComp.SR.tcParameterInferredByref v.DisplayName, v.Range)))

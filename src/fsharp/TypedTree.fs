@@ -260,8 +260,8 @@ type ValFlags2 (flags : int64) =
              | NestedScopeParam -> 0b00000000000000000010L)
         ValFlags2 flags
         
-    member _.IsTopLevelParam = flags &&& 0b00000000000000000001L = 0b00000000000000000001L
-    member _.IsNestedScopeParam = flags &&& 0b00000000000000000010L = 0b00000000000000000010L
+    member _.IsTopLevelParam = flags &&& 0b00000000000000000001L <> 0L
+    member _.IsNestedScopeParam = flags &&& 0b00000000000000000010L <> 0L
     member x.IsParam = x.IsTopLevelParam || x.IsNestedScopeParam
 
 /// Represents the kind of a type parameter
