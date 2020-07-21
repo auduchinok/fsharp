@@ -1,0 +1,6 @@
+version: 1.0.{build}
+install:
+- ps: fcs/installSDK.ps1
+build_script:
+- cmd: fcs/build.cmd
+test: off
