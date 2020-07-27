@@ -5381,7 +5381,9 @@ and TcExprThen cenv overallTy env tpenv synExpr delayed =
         // Check to see if pattern translation decided to use an alternative identifier.
         match altNameRefCellOpt with
         | Some {contents = SynSimplePatAlternativeIdInfo.Decided altId} -> TcExprThen cenv overallTy env tpenv (SynExpr.LongIdent (isOpt, LongIdentWithDots([altId], []), None, mLongId)) delayed
-        | _ -> TcLongIdentThen cenv overallTy env tpenv longId delayed
+        | _ ->
+            CallExprHasTypeSink cenv.tcSink (mLongId, env.NameEnv, overallTy, env.AccessRights)
+            TcLongIdentThen cenv overallTy env tpenv longId delayed
 
     // f x
     | SynExpr.App (hpa, _, func, arg, mFuncAndArg) ->
