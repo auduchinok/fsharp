@@ -2059,9 +2059,9 @@ and FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
         | V valRef -> not (SymbolHelpers.isFunction cenv.g valRef.Type)
         | _ -> false
         
-    member x.IsValUnused =
+    member x.IsValHasBeenReferenced =
         match d with
-        | V v -> v.HasBeenReferenced && not v.IsCompiledAsTopLevel && not (v.DisplayName.StartsWithOrdinal("_")) && not v.IsCompilerGenerated
+        | V v -> v.HasBeenReferenced
         | _ -> false
 
     override x.Equals(other: obj) =
