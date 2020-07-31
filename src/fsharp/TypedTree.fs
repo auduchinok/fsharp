@@ -3800,6 +3800,8 @@ type ValRef =
     [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.DebugText = x.ToString()
 
+    member x.HasBeenReferenced = x.Deref.HasBeenReferenced
+
     override x.ToString() = 
        if x.IsLocalRef then x.ResolvedTarget.DisplayName 
        else x.nlr.ToString()

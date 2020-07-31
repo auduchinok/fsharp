@@ -2058,6 +2058,11 @@ and FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
         match d with
         | V valRef -> not (SymbolHelpers.isFunction cenv.g valRef.Type)
         | _ -> false
+        
+    member x.IsValUnused =
+        match d with
+        | V v -> v.HasBeenReferenced && not v.IsCompiledAsTopLevel && not (v.DisplayName.StartsWithOrdinal("_")) && not v.IsCompilerGenerated
+        | _ -> false
 
     override x.Equals(other: obj) =
         box x === other ||
