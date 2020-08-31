@@ -1848,10 +1848,10 @@ let UseNoArity prelimScheme =
     BuildValScheme ExpressionBinding None prelimScheme
 
 /// Make and publish the Val nodes for a collection of simple (non-generic) value specifications 
-let MakeAndPublishSimpleVals cenv env names isParam =
+let MakeAndPublishSimpleVals cenv env names valParamInfo =
     let tyschemes = DontGeneralizeVals names
     let valSchemes = NameMap.map UseNoArity tyschemes
-    let values = MakeAndPublishVals cenv env (ParentNone, false, ExpressionBinding, ValNotInRecScope, valSchemes, [], XmlDoc.Empty, None, isParam) 
+    let values = MakeAndPublishVals cenv env (ParentNone, false, ExpressionBinding, ValNotInRecScope, valSchemes, [], XmlDoc.Empty, None, valParamInfo) 
     let vspecMap = NameMap.map fst values
     values, vspecMap
     
