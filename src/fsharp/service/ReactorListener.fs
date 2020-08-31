@@ -5,6 +5,7 @@ namespace FSharp.Compiler.SourceCodeServices
 open System
 open System.Diagnostics
 
+[<AllowNullLiteral>]
 type public IReactorListener =
     abstract OnReactorPauseBeforeBackgroundWork : pauseMillis: int -> unit
     abstract OnReactorOperationStart : userOpName: string -> opName: string -> opArg: string -> approxQueueLength: int -> unit

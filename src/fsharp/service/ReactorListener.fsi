@@ -4,6 +4,7 @@ namespace FSharp.Compiler.SourceCodeServices
 
 open System
 
+[<AllowNullLiteral>]
 /// Interface for listening to events on the FCS reactor thread.
 type public IReactorListener =
     /// Called when the reactor queue is empty, but there is background work to be done.

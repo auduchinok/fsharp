@@ -2,10 +2,10 @@
 #if INTERACTIVE
 #r @"../../packages/NUnit.3.5.0/lib/net45/nunit.framework.dll"
 #load "../../src/scripts/scriptlib.fsx"
-#load "../FSharp.TestHelpers/TestFramework.fs"
+#load "../FSharp.Test.Utilities/TestFramework.fs"
 #load "single-test.fs"
 #else
-module ``FSharp-Tests-Core``
+module FSharp.Tests.Core
 #endif
 
 open System
@@ -254,9 +254,20 @@ module CoreTests =
         begin
             use testOkFile = fileguard cfg "test.ok"
 
-            fsc cfg "%s -o:test.exe -g" cfg.fsc_flags ["test.fsx"]
+            fsc cfg "%s -o:test.exe -g --langversion:4.7" cfg.fsc_flags ["test.fsx"]
 
-            singleNegTest cfg "test"
+            singleVersionedNegTest cfg "4.7" "test"
+            exec cfg ("." ++ "test.exe") ""
+
+            testOkFile.CheckExists()
+        end
+
+        begin
+            use testOkFile = fileguard cfg "test.ok"
+
+            fsc cfg "%s -o:test.exe -g --langversion:5.0" cfg.fsc_flags ["test.fsx"]
+
+            singleVersionedNegTest cfg "5.0" "test"
 
             exec cfg ("." ++ "test.exe") ""
 
@@ -858,20 +869,36 @@ module CoreTests =
         | diffs -> Assert.Fail (sprintf "'%s' and '%s' differ; %A" diffFileErr expectedFileErr diffs)
 
     [<Test>]
-    let ``printing-1`` () =
-         printing "" "z.output.test.default.stdout.txt" "z.output.test.default.stdout.bsl" "z.output.test.default.stderr.txt" "z.output.test.default.stderr.bsl"
+    let ``printing-1 --langversion:4.7`` () =
+         printing "--langversion:4.7" "z.output.test.default.stdout.47.txt" "z.output.test.default.stdout.47.bsl" "z.output.test.default.stderr.txt" "z.output.test.default.stderr.bsl"
 
     [<Test>]
-    let ``printing-2`` () =
-         printing "--use:preludePrintSize1000.fsx" "z.output.test.1000.stdout.txt" "z.output.test.1000.stdout.bsl" "z.output.test.1000.stderr.txt" "z.output.test.1000.stderr.bsl"
+    let ``printing-1 --langversion:5.0`` () =
+         printing "--langversion:preview" "z.output.test.default.stdout.50.txt" "z.output.test.default.stdout.50.bsl" "z.output.test.default.stderr.txt" "z.output.test.default.stderr.bsl"
 
     [<Test>]
-    let ``printing-3`` () =
-         printing "--use:preludePrintSize200.fsx" "z.output.test.200.stdout.txt" "z.output.test.200.stdout.bsl" "z.output.test.200.stderr.txt" "z.output.test.200.stderr.bsl"
+    let ``printing-2 --langversion:4.7`` () =
+         printing "--langversion:4.7 --use:preludePrintSize1000.fsx" "z.output.test.1000.stdout.47.txt" "z.output.test.1000.stdout.47.bsl" "z.output.test.1000.stderr.txt" "z.output.test.1000.stderr.bsl"
 
     [<Test>]
-    let ``printing-4`` () =
-         printing "--use:preludeShowDeclarationValuesFalse.fsx" "z.output.test.off.stdout.txt" "z.output.test.off.stdout.bsl" "z.output.test.off.stderr.txt" "z.output.test.off.stderr.bsl"
+    let ``printing-2 --langversion:5.0`` () =
+         printing "--langversion:preview --use:preludePrintSize1000.fsx" "z.output.test.1000.stdout.50.txt" "z.output.test.1000.stdout.50.bsl" "z.output.test.1000.stderr.txt" "z.output.test.1000.stderr.bsl"
+
+    [<Test>]
+    let ``printing-3  --langversion:4.7`` () =
+         printing "--langversion:4.7 --use:preludePrintSize200.fsx" "z.output.test.200.stdout.47.txt" "z.output.test.200.stdout.47.bsl" "z.output.test.200.stderr.txt" "z.output.test.200.stderr.bsl"
+
+    [<Test>]
+    let ``printing-3  --langversion:5.0`` () =
+         printing "--langversion:preview --use:preludePrintSize200.fsx" "z.output.test.200.stdout.50.txt" "z.output.test.200.stdout.50.bsl" "z.output.test.200.stderr.txt" "z.output.test.200.stderr.bsl"
+
+    [<Test>]
+    let ``printing-4  --langversion:4.7`` () =
+         printing "--langversion:4.7 --use:preludeShowDeclarationValuesFalse.fsx" "z.output.test.off.stdout.47.txt" "z.output.test.off.stdout.47.bsl" "z.output.test.off.stderr.txt" "z.output.test.off.stderr.bsl"
+
+    [<Test>]
+    let ``printing-4  --langversion:5.0`` () =
+         printing "--langversion:preview --use:preludeShowDeclarationValuesFalse.fsx" "z.output.test.off.stdout.50.txt" "z.output.test.off.stdout.50.bsl" "z.output.test.off.stderr.txt" "z.output.test.off.stderr.bsl"
 
     [<Test>]
     let ``printing-5`` () =
@@ -1813,6 +1840,16 @@ module CoreTests =
         fsc cfg "%s -o:xmlverify.exe -g" cfg.fsc_flags ["xmlverify.fs"]
 
         peverifyWithArgs cfg "/nologo" "xmlverify.exe"
+        
+        
+    [<Test>]
+    let ``property setter in method or constructor`` () =
+        let cfg = testConfig' "core/members/set-only-property"
+        csc cfg @"%s /target:library /out:cs.dll" cfg.csc_flags ["cs.cs"]
+        vbc cfg @"%s /target:library /out:vb.dll" cfg.vbc_flags ["vb.vb"]
+        fsc cfg @"%s /target:library /out:fs.dll" cfg.fsc_flags ["fs.fs"]
+        singleNegTest cfg "calls"
+
 #endif
 
 module VersionTests =
@@ -2203,6 +2240,15 @@ module TypecheckTests =
         let cfg = testConfig' "typecheck/sigs"
         fsc cfg "%s --target:library -o:pos35.dll --warnaserror" cfg.fsc_flags ["pos35.fs"]
         peverify cfg "pos35.dll"
+
+    [<Test>]
+    let ``sigs pos36-srtp`` () =
+        let cfg = testConfig' "typecheck/sigs"
+        fsc cfg "%s --target:library -o:pos36-srtp-lib.dll --warnaserror" cfg.fsc_flags ["pos36-srtp-lib.fs"]
+        fsc cfg "%s --target:exe -r:pos36-srtp-lib.dll -o:pos36-srtp-app.exe --warnaserror" cfg.fsc_flags ["pos36-srtp-app.fs"]
+        peverify cfg "pos36-srtp-lib.dll"
+        peverify cfg "pos36-srtp-app.exe"
+        exec cfg ("." ++ "pos36-srtp-app.exe") ""
 
     [<Test>]
     let ``sigs pos23`` () =
@@ -2694,6 +2740,9 @@ module TypecheckTests =
     [<Test>]
     let ``type check neg111`` () = singleNegTest (testConfig' "typecheck/sigs") "neg111"
 
+    [<Test>] 
+    let ``type check neg112`` () = singleNegTest (testConfig' "typecheck/sigs") "neg112"
+    
     [<Test>]
     let ``type check neg113`` () = singleNegTest (testConfig' "typecheck/sigs") "neg113"
 
