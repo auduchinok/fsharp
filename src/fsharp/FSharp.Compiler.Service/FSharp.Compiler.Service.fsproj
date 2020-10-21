@@ -14,6 +14,10 @@
     <Tailcalls>true</Tailcalls> <!-- .tail annotations always emitted for this binary, even in debug mode -->
     <FsYaccOutputFolder>$(IntermediateOutputPath)$(TargetFramework)\</FsYaccOutputFolder>
     <FsLexOutputFolder>$(IntermediateOutputPath)$(TargetFramework)\</FsLexOutputFolder>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>fcs.snk</AssemblyOriginatorKeyFile>
+    <VersionPrefix>2021.2.0</VersionPrefix>
+    <OtherFlags Condition="'$(SolutionName)' == 'FSharp.Compiler.Service'">$(OtherFlags) --version:$(VersionPrefix)</OtherFlags>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -358,10 +362,10 @@
       <Link>ReferenceResolution\ReferenceResolver.fs</Link>
     </Compile>
     <!-- A legacy resolver used to help with scripting diagnostics in the Visual Studio tools -->
-    <Compile Include="..\LegacyMSBuildReferenceResolver.fsi">
+    <Compile Include="..\LegacyMSBuildReferenceResolver.fsi" Condition="'$(SolutionName)' != 'FSharp.Compiler.Service'">
       <Link>ReferenceResolution/LegacyMSBuildReferenceResolver.fsi</Link>
     </Compile>
-    <Compile Include="..\LegacyMSBuildReferenceResolver.fs" Condition="'$(MonoPackaging)' != 'true'">
+    <Compile Include="..\LegacyMSBuildReferenceResolver.fs" Condition="'$(SolutionName)' != 'FSharp.Compiler.Service'">
       <Link>ReferenceResolution/LegacyMSBuildReferenceResolver.fs</Link>
     </Compile>
     <Compile Include="..\SimulatedMSBuildReferenceResolver.fsi">
@@ -961,12 +965,8 @@
   </ItemGroup>
 
 
-  <ItemGroup Condition="'$(FSHARPCORE_USE_PACKAGE)' != 'true'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\FSharp.Core\FSharp.Core.fsproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(FSHARPCORE_USE_PACKAGE)' == 'true'">
-    <PackageReference Include="FSharp.Core" Version="$(FSharpCorePreviewPackageVersion)" />
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -995,6 +995,9 @@
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="$(MicrosoftBuildVersion)" />
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildVersion)" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="$(SystemRuntimeCompilerServicesUnsafeVersion)" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="$(MicrosoftBuildVersion)" Condition="'$(SolutionName)' != 'FSharp.Compiler.Service'"/>
+    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="$(MicrosoftBuildVersion)" Condition="'$(SolutionName)' != 'FSharp.Compiler.Service'"/>
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildVersion)" Condition="'$(SolutionName)' != 'FSharp.Compiler.Service'"/>
   </ItemGroup>
 
 </Project>
