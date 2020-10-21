@@ -6,9 +6,12 @@ open System
 open System.IO
 open System.Reflection
 open Microsoft.Win32
-open Microsoft.Build.Utilities
 open Internal.Utilities.Library
 open FSharp.Compiler.IO
+
+#if !NETSTANDARD
+open Microsoft.Build.Utilities
+#endif
 
 // ATTENTION!: the following code needs to be updated every time we are switching to the new MSBuild version because new .NET framework version was released
 // 1. List of frameworks
@@ -49,6 +52,7 @@ let SupportedDesktopFrameworkVersions = [ Net48; Net472; Net471; Net47; Net462; 
 
 let private SimulatedMSBuildResolver =
 
+#if !NETSTANDARD
     /// Get the path to the .NET Framework implementation assemblies by using ToolLocationHelper.GetPathToDotNetFramework
     /// This is only used to specify the "last resort" path for assembly resolution.
     let GetPathToDotNetFrameworkImlpementationAssemblies(v) =
@@ -71,6 +75,7 @@ let private SimulatedMSBuildResolver =
             | null -> []
             | x -> [x]
         | _ -> []
+#endif
 
     let GetPathToDotNetFrameworkReferenceAssemblies(version) = 
 #if NETSTANDARD
@@ -145,7 +150,9 @@ let private SimulatedMSBuildResolver =
                     yield! registrySearchPaths()
 #endif
                 yield! GetPathToDotNetFrameworkReferenceAssemblies targetFrameworkVersion
+#if !NETSTANDARD
                 yield! GetPathToDotNetFrameworkImlpementationAssemblies targetFrameworkVersion
+#endif
               ]
 
             for (r, baggage) in references do

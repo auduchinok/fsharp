@@ -381,13 +381,6 @@
     <Compile Include="..\ReferenceResolver.fs">
       <Link>ReferenceResolution\ReferenceResolver.fs</Link>
     </Compile>
-    <!-- A legacy resolver used to help with scripting diagnostics in the Visual Studio tools -->
-    <Compile Include="..\LegacyMSBuildReferenceResolver.fsi">
-      <Link>ReferenceResolution/LegacyMSBuildReferenceResolver.fsi</Link>
-    </Compile>
-    <Compile Include="..\LegacyMSBuildReferenceResolver.fs" Condition="'$(MonoPackaging)' != 'true'">
-      <Link>ReferenceResolution/LegacyMSBuildReferenceResolver.fs</Link>
-    </Compile>
     <Compile Include="..\SimulatedMSBuildReferenceResolver.fsi">
       <Link>ReferenceResolution/SimulatedMSBuildReferenceResolver.fsi</Link>
     </Compile>
@@ -1024,9 +1017,6 @@
     <PackageReference Include="System.Threading.ThreadPool" Version="$(SystemThreadingThreadPoolVersion)" />
     <PackageReference Include="System.Buffers" Version="$(SystemBuffersVersion)" />
     <PackageReference Include="System.Memory" Version="$(SystemMemoryVersion)" />
-    <PackageReference Include="Microsoft.Build.Framework" Version="$(MicrosoftBuildVersion)" />
-    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="$(MicrosoftBuildVersion)" />
-    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildVersion)" />
   </ItemGroup>
 
 </Project>
