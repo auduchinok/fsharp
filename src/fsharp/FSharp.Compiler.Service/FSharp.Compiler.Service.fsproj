@@ -3,7 +3,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net472;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <OutputType>Library</OutputType>
     <NoWarn>$(NoWarn);44;45;54;55;57;61;62;69;65;75;1204;2003;NU5125</NoWarn>
     <AssemblyName>FSharp.Compiler.Service</AssemblyName>
