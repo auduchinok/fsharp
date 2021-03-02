@@ -315,7 +315,7 @@ type Test() =
     let parseResult, typeCheckResults =  parseAndCheckScript(file, input) 
 
     let decls = typeCheckResults.GetDeclarationListInfo(Some parseResult, 4, inputLines.[3], PartialLongName.Empty(20), (fun _ -> []))
-    let item = decls.Items |> Array.tryFind (fun d -> d.Name = "abc")
+    let item = decls.Items |> Seq.tryFind (fun d -> d.Name = "abc")
     decls.Items |> Seq.exists (fun d -> d.Name = "abc") |> shouldEqual true
 
 [<Test>]
@@ -332,7 +332,7 @@ type Test() =
     let parseResult, typeCheckResults =  parseAndCheckScript(file, input) 
 
     let decls = typeCheckResults.GetDeclarationListInfo(Some parseResult, 4, inputLines.[3], PartialLongName.Empty(21), (fun _ -> []))
-    let item = decls.Items |> Array.tryFind (fun d -> d.Name = "abc")
+    let item = decls.Items |> Seq.tryFind (fun d -> d.Name = "abc")
     decls.Items |> Seq.exists (fun d -> d.Name = "abc") |> shouldEqual true
  
 [<Test>]
