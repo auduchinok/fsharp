@@ -129,7 +129,7 @@ module Order =
     let toFunction (pxOrder: IComparer<'U>) x y = pxOrder.Compare(x, y)
 
 //-------------------------------------------------------------------------
-// Library: arrays, lists, options, resizearrays
+// Library: arrays, lists, options
 //-------------------------------------------------------------------------
 
 module Array = 
