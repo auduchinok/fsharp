@@ -7,6 +7,8 @@
 
 namespace FSharp.Compiler.EditorServices
 
+open System
+open System.Collections.Generic
 open System.Collections.Immutable
 open Internal.Utilities.Library  
 open Internal.Utilities.Library.Extras
@@ -915,11 +917,8 @@ module internal DescriptionListsImpl =
 
 /// An intellisense declaration
 [<Sealed>]
-type DeclarationListItem(name: string, nameInCode: string, fullName: string, glyph: FSharpGlyph, info, accessibility: FSharpAccessibility,
-                               kind: CompletionItemKind, isOwnMember: bool, priority: int, isResolved: bool, namespaceToOpen: string option) =
+type DeclarationListItem(name: string, info,  item: CompletionItem, symbol: FSharpSymbol, namespaceToOpen: string[]) =
     member _.Name = name
-
-    member _.NameInCode = nameInCode
 
     member _.Description = 
         match info with
@@ -928,37 +927,30 @@ type DeclarationListItem(name: string, nameInCode: string, fullName: string, gly
         | Choice2Of2 result -> 
             result
 
-    member _.Glyph = glyph 
+    member _.FSharpSymbol = symbol
 
-    member _.Accessibility = accessibility
+    member _.Kind = item.Kind
 
-    member _.Kind = kind
+    member _.IsOwnMember = item.IsOwnMember
 
-    member _.IsOwnMember = isOwnMember
+    member _.MinorPriority = item.MinorPriority
 
-    member _.MinorPriority = priority
-
-    member _.FullName = fullName
-
-    member _.IsResolved = isResolved
+    member _.IsResolved = item.Unresolved.IsNone
 
     member _.NamespaceToOpen = namespaceToOpen
 
 /// A table of declarations for Intellisense completion 
 [<Sealed>]
-type DeclarationListInfo(declarations: DeclarationListItem[], isForType: bool, isError: bool) = 
+type DeclarationListInfo(declarations: DeclarationListItem seq, isError: bool, displayContext: FSharpDisplayContext) = 
     static let fsharpNamespace = [|"Microsoft"; "FSharp"|]
 
     member _.Items = declarations
-
-    member _.IsForType = isForType
-
     member _.IsError = isError
+    member _.DisplayContext = displayContext
 
     // Make a 'Declarations' object for a set of selected items
-    static member Create(infoReader:InfoReader, m: range, denv, getAccessibility: (Item -> FSharpAccessibility), items: CompletionItem list, currentNamespace: string[] option, isAttributeApplicationContext: bool) = 
+    static member Create(infoReader:InfoReader, m: range, denv, cenv: SymbolEnv, unresolvedOnly: bool, items: CompletionItem list, isAttributeApplicationContext: bool) = 
         let g = infoReader.g
-        let isForType = items |> List.exists (fun x -> x.Type.IsSome)
         let items = items |> RemoveExplicitlySuppressedCompletionItems g
         
         let tyconRefOptEq tref1 tref2 =
@@ -1017,9 +1009,11 @@ type DeclarationListInfo(declarations: DeclarationListItem[], isForType: bool, i
                     | None -> item.Item.DisplayName
                 name, items)
 
-        // Filter out operators, active patterns (as values) and the empty list
-        let items = 
-            // Check whether this item looks like an operator.
+        let result = List()
+
+        for displayName, itemsWithSameName in items do
+            if displayName = "[]" then () else
+
             let isOperatorItem name (items: CompletionItem list) =
                 match items with
                 | [item] ->
@@ -1036,81 +1030,60 @@ type DeclarationListInfo(declarations: DeclarationListItem[], isForType: bool, i
                     | _ -> false
                 | _ -> false
 
-            items |> List.filter (fun (displayName, items) -> 
-                not (isOperatorItem displayName items) && 
-                not (displayName = "[]") && // list shows up as a Type and a UnionCase, only such entity with a symbolic name, but want to filter out of intellisense
-                not (isActivePatternItem items))
+            if isOperatorItem displayName itemsWithSameName || isActivePatternItem itemsWithSameName then () else
 
-        let decls = 
-            items 
-            |> List.map (fun (displayName, itemsWithSameFullName) -> 
-                match itemsWithSameFullName with
-                | [] -> failwith "Unexpected empty bag"
-                | _ ->
-                    let items =
-                        match itemsWithSameFullName |> List.partition (fun x -> x.Unresolved.IsNone) with
-                        | [], unresolved -> unresolved
-                        // if there are resolvable items, throw out unresolved to prevent duplicates like `Set` and `FSharp.Collections.Set`.
-                        | resolved, _ -> resolved 
-                    
-                    let item = items.Head
-                    let glyph = GlyphOfItem(denv, item.Item)
+            match itemsWithSameName with
+            | [] -> failwith "Unexpected empty bag"
+            | _ ->
 
-                    let name, nameInCode =
-                        if displayName.StartsWithOrdinal("( ") && displayName.EndsWithOrdinal(" )") then
-                            let cleanName = displayName.[2..displayName.Length - 3]
-                            cleanName,
-                            if IsOperatorName displayName then cleanName else "``" + cleanName + "``"
-                        else 
-                            displayName,
-                            match item.Unresolved with
-                            | Some _ -> displayName
-                            | None -> Lexhelp.Keywords.QuoteIdentifierIfNeeded displayName
+            let partitionedItems =
+                match itemsWithSameName |> List.partition (fun x -> x.Unresolved.IsNone) with
+                | [], unresolved -> unresolved
+                // if there are resolvable items, throw out unresolved to prevent duplicates like `Set` and `FSharp.Collections.Set`.
+                | resolved, _ -> resolved 
 
-                    let isAttributeItem = lazy (SymbolHelpers.IsAttribute infoReader item.Item)
+            let item = partitionedItems.Head
+            if unresolvedOnly && item.Unresolved.IsNone then () else
+            if IsExplicitlySuppressed g item.Item then () else
 
-                    let cutAttributeSuffix (name: string) =
-                        if isAttributeApplicationContext && name <> "Attribute" && name.EndsWithOrdinal("Attribute") && isAttributeItem.Value then
-                            name.[0..name.Length - "Attribute".Length - 1]
-                        else name
+            let name =
+                if displayName.StartsWithOrdinal("( ") && displayName.EndsWithOrdinal(" )") then
+                    displayName.[2..displayName.Length - 3]
+                else
+                    displayName
 
-                    let name = cutAttributeSuffix name
-                    let nameInCode = cutAttributeSuffix nameInCode
-                    
-                    let fullName = 
-                        match item.Unresolved with
-                        | Some x -> x.FullName
-                        | None -> SymbolHelpers.FullNameOfItem g item.Item
-                    
-                    let namespaceToOpen = 
-                        item.Unresolved 
-                        |> Option.map (fun x -> x.Namespace)
-                        |> Option.bind (fun ns ->
-                            if ns |> Array.startsWith fsharpNamespace then None
-                            else Some ns)
-                        |> Option.map (fun ns ->
-                            match currentNamespace with
-                            | Some currentNs ->
-                               if ns |> Array.startsWith currentNs then
-                                 ns.[currentNs.Length..]
-                               else ns
-                            | None -> ns)
-                        |> Option.bind (function
-                            | [||] -> None
-                            | ns -> Some (System.String.Join(".", ns)))
+            let cutAttributeSuffix isAttributeApplicationContext infoReader (item: CompletionItem) (name: string) =
+                if isAttributeApplicationContext &&
+                        name.EndsWithOrdinal("Attribute") && name.Length > "Attribute".Length &&
+                        SymbolHelpers.IsAttribute infoReader item.Item then
+                    name.[0..name.Length - "Attribute".Length - 1]
+                else
+                    name
 
-                    DeclarationListItem(
-                        name, nameInCode, fullName, glyph, Choice1Of2 (items, infoReader, m, denv), getAccessibility item.Item,
-                        item.Kind, item.IsOwnMember, item.MinorPriority, item.Unresolved.IsNone, namespaceToOpen))
+            let name = cutAttributeSuffix isAttributeApplicationContext infoReader item name
 
-        new DeclarationListInfo(Array.ofList decls, isForType, false)
+            let namespaceToOpen =
+                item.Unresolved
+                |> Option.map (fun x ->
+                    let ns = x.Namespace
+                    if Array.startsWith fsharpNamespace ns then Array.Empty() else ns)
+                |> Option.defaultValue (System.Array.Empty())
+
+            let item =
+                DeclarationListItem(
+                    name, Choice1Of2 (partitionedItems, infoReader, m, denv),
+                    item, FSharpSymbol.Create(cenv, item.ItemWithInst.Item), namespaceToOpen)
+
+            result.Add(item)
+
+        new DeclarationListInfo(result, false, FSharpDisplayContext(fun _ -> denv))
     
     static member Error message = 
         new DeclarationListInfo(
-                [| DeclarationListItem("<Note>", "<Note>", "<Note>", FSharpGlyph.Error, Choice2Of2 (ToolTipText [ToolTipElement.CompositionError message]),
-                                             FSharpAccessibility(taccessPublic), CompletionItemKind.Other, false, 0, false, None) |], false, true)
+                [| DeclarationListItem("<Note>", Choice2Of2 (ToolTipText [ToolTipElement.CompositionError message]),
+                                             Unchecked.defaultof<_>, Unchecked.defaultof<_>, System.Array.Empty()) |], true, Unchecked.defaultof<_>)
     
-    static member Empty = DeclarationListInfo([| |], false, false)
+    static member Empty = DeclarationListInfo([| |], false, Unchecked.defaultof<_>)
 
 
 
