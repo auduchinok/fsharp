@@ -1079,7 +1079,7 @@ type internal TypeCheckInfo
         |> Seq.tryFind (fun (_, _, _, m) -> equals m range)
         |> Option.map (fun (ty, _, _, _) -> FSharpType (cenv, ty))
     /// Get the auto-complete items at a location
-    member _.GetDeclarations (parseResultsOpt, line, lineStr, partialName, getAllEntities) =
+    member _.GetDeclarations (parseResultsOpt, line, lineStr, partialName, getAllEntities, unresolvedOnly) =
         let isInterfaceFile = SourceFileImpl.IsInterfaceFile mainInputFileName
         ErrorScope.Protect Range.range0
             (fun () ->
@@ -1094,13 +1094,9 @@ type internal TypeCheckInfo
                 | None -> DeclarationListInfo.Empty
                 | Some (items, denv, ctx, m) ->
                     let items = if isInterfaceFile then items |> List.filter (fun x -> IsValidSignatureFileItem x.Item) else items
-                    let getAccessibility item = FSharpSymbol.Create(cenv, item).Accessibility
-                    let currentNamespaceOrModule =
-                        parseResultsOpt
-                        |> Option.map (fun x -> x.ParseTree)
-                        |> Option.map (fun parsedInput -> ParsedInput.GetFullNameOfSmallestModuleOrNamespaceAtPoint(mkPos line 0, parsedInput))
+                    let denv = { denv with shortTypeNames = true }
                     let isAttributeApplication = ctx = Some CompletionContext.AttributeApplication
-                    DeclarationListInfo.Create(infoReader,m,denv,getAccessibility,items,currentNamespaceOrModule,isAttributeApplication))
+                    DeclarationListInfo.Create(infoReader,m,denv,cenv, unresolvedOnly,items,isAttributeApplication))
             (fun msg ->
                 Trace.TraceInformation(sprintf "FCS: recovering from error in GetDeclarations: '%s'" msg)
                 DeclarationListInfo.Error msg)
@@ -1946,10 +1942,11 @@ type FSharpCheckFileResults
             (fun scope -> scope.TryGetExpressionType(range))
 
     /// Intellisense autocompletions
-    member _.GetDeclarationListInfo(parsedFileResults, line, lineText, partialName, ?getAllEntities) =
+    member _.GetDeclarationListInfo(parsedFileResults, line, lineText, partialName, ?getAllEntities, ?unresolvedOnly) =
         let getAllEntities = defaultArg getAllEntities (fun() -> [])
+        let unresolvedOnly = defaultArg unresolvedOnly false
         threadSafeOp (fun () -> DeclarationListInfo.Empty) (fun scope ->
-            scope.GetDeclarations(parsedFileResults, line, lineText, partialName, getAllEntities))
+            scope.GetDeclarations(parsedFileResults, line, lineText, partialName, getAllEntities, unresolvedOnly))
 
     member _.GetDeclarationListSymbols(parsedFileResults, line, lineText, partialName, ?getAllEntities) =
         let getAllEntities = defaultArg getAllEntities (fun() -> [])
