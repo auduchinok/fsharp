@@ -97,15 +97,10 @@ type public DeclarationListItem =
     /// Get the display name for the declaration.
     member Name: string
 
-    /// Get the name for the declaration as it's presented in source code.
-    member NameInCode: string
-
     /// Get the description
     member Description: ToolTipText
 
-    member Glyph: FSharpGlyph
-
-    member Accessibility: FSharpAccessibility
+    member FSharpSymbol : FSharpSymbol
 
     member Kind: CompletionItemKind
 
@@ -113,11 +108,9 @@ type public DeclarationListItem =
 
     member MinorPriority: int
 
-    member FullName: string
-
     member IsResolved: bool
 
-    member NamespaceToOpen: string option
+    member NamespaceToOpen: string[]
 
 
 [<Sealed>]
@@ -127,20 +120,20 @@ type public DeclarationListItem =
 // Note: this type holds a weak reference to compiler resources. 
 type public DeclarationListInfo =
 
-    member Items: DeclarationListItem[]
-
-    member IsForType: bool
+    member Items : DeclarationListItem seq
 
     member IsError: bool
+
+    member DisplayContext: FSharpDisplayContext
 
     // Implementation details used by other code in the compiler    
     static member internal Create:
         infoReader:InfoReader * 
         m:range * 
         denv:DisplayEnv * 
-        getAccessibility:(Item -> FSharpAccessibility) * 
+        cenv: SymbolEnv *
+        unresolvedOnly: bool * 
         items:CompletionItem list * 
-        currentNamespace:string[] option * 
         isAttributeApplicationContext:bool 
             -> DeclarationListInfo
 
