@@ -152,7 +152,7 @@ module AssemblyContent =
               UnresolvedSymbol = UnresolvedSymbol topRequireQualifiedAccessParent cleanIdents fullName
             })
 
-    let traverseMemberFunctionAndValues ns (parent: Parent) (membersFunctionsAndValues: seq<FSharpMemberOrFunctionOrValue>) =
+    let _traverseMemberFunctionAndValues ns (parent: Parent) (membersFunctionsAndValues: seq<FSharpMemberOrFunctionOrValue>) =
         let topRequireQualifiedAccessParent = parent.TopRequiresQualifiedAccess false |> Option.map parent.FixParentModuleSuffix
         let autoOpenParent = parent.AutoOpen |> Option.map parent.FixParentModuleSuffix
         membersFunctionsAndValues
@@ -227,11 +227,6 @@ module AssemblyContent =
 
                           Namespace = ns
                           IsModule = entity.IsFSharpModule }
-
-                    match entity.TryGetMembersFunctionsAndValues() with
-                    | xs when xs.Count > 0 ->
-                        yield! traverseMemberFunctionAndValues ns currentParent xs
-                    | _ -> ()
 
                     for e in (try entity.NestedEntities :> _ seq with _ -> Seq.empty) do
                         yield! traverseEntity contentType currentParent e 
