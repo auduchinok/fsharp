@@ -135,6 +135,7 @@ module ExtensionTyping =
              systemRuntimeContainsType: string -> bool, 
              systemRuntimeAssemblyVersion: System.Version, 
              compilerToolPaths: string list,
+             logError: TypeProviderError -> unit,
              m:range) =
 
         let providers =
@@ -170,7 +171,7 @@ module ExtensionTyping =
                           () ]
 
                 with :? TypeProviderError as tpe ->
-                    tpe.Iter(fun e -> errorR(NumberedError((e.Number, e.ContextualErrorMessage), m)) )
+                    logError tpe
                     []
 
         providers
@@ -888,6 +889,7 @@ module ExtensionTyping =
               * systemRuntimeContainsType: (string -> bool)
               * systemRuntimeAssemblyVersion: System.Version
               * compilerToolsPath: string list
+              * logError: (TypeProviderError -> unit)
               * m: range -> ITypeProvider list
               
             abstract GetProvidedTypes: pn: IProvidedNamespace -> ProvidedType[]           
@@ -907,6 +909,7 @@ module ExtensionTyping =
                      systemRuntimeContainsType: string -> bool, 
                      systemRuntimeAssemblyVersion: System.Version, 
                      compilerToolPaths: string list,
+                     logError: TypeProviderError -> unit,
                      m: range) =
 
                     GetTypeProvidersOfAssemblyInternal
@@ -918,6 +921,7 @@ module ExtensionTyping =
                          systemRuntimeContainsType,
                          systemRuntimeAssemblyVersion,
                          compilerToolPaths,
+                         logError,
                          m)
 
                 member this.GetProvidedTypes(pn: IProvidedNamespace) =
@@ -933,7 +937,10 @@ module ExtensionTyping =
                     if fullName then tp.GetType().FullName else tp.GetType().Name
 
         let mutable ExtensionTypingProvider = DefaultExtensionTypingProvider() :> IExtensionTypingProvider
-        
+        let shimLogger (tpe: TypeProviderError) =
+            tpe.Iter(fun e -> errorR(NumberedError((e.Number, e.ContextualErrorMessage), e.Range)))
+
+
     let GetTypeProvidersOfAssembly
         (runTimeAssemblyFileName: string, 
          ilScopeRefOfRuntimeAssembly: ILScopeRef, 
@@ -955,6 +962,7 @@ module ExtensionTyping =
                          systemRuntimeContainsType,
                          systemRuntimeAssemblyVersion,
                          compilerToolPaths,
+                         Shim.shimLogger,
                          m)
               
         Tainted<_>.CreateAll (providers |> List.map (fun p -> p, ilScopeRefOfRuntimeAssembly, ExtensionTypingProvider.DisplayNameOfTypeProvider(p, true)))
