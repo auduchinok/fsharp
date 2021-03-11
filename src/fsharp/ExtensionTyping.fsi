@@ -48,7 +48,7 @@ module ExtensionTyping =
     val GetTypeProvidersOfAssembly : 
           runtimeAssemblyFilename: string  *
           ilScopeRefOfRuntimeAssembly:ILScopeRef *
-          designTimeName: string *
+          designTimeAssemblyFilename: string *
           resolutionEnvironment: ResolutionEnvironment *
           isInvalidationSupported: bool *
           isInteractive: bool *
