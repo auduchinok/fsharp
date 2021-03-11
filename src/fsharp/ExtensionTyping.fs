@@ -942,9 +942,9 @@ module ExtensionTyping =
 
 
     let GetTypeProvidersOfAssembly
-        (runTimeAssemblyFileName: string, 
+        (runtimeAssemblyFilename: string, 
          ilScopeRefOfRuntimeAssembly: ILScopeRef, 
-         designTimeAssemblyNameString: string, 
+         designTimeAssemblyFilename: string, 
          resolutionEnvironment: ResolutionEnvironment, 
          isInvalidationSupported: bool, 
          isInteractive: bool, 
@@ -954,8 +954,8 @@ module ExtensionTyping =
          m: range) =
     
         let providers = ExtensionTypingProvider.InstantiateTypeProvidersOfAssembly(
-                         runTimeAssemblyFileName,
-                         designTimeAssemblyNameString,
+                         runtimeAssemblyFilename,
+                         designTimeAssemblyFilename,
                          resolutionEnvironment,
                          isInvalidationSupported,
                          isInteractive,
