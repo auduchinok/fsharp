@@ -1169,6 +1169,10 @@ type IncrementalBuilder(tcGlobals, frameworkTcImports, nonFrameworkAssemblyInput
     
     member builder.AreCheckResultsBeforeFileInProjectReady filename = 
         let slotOfFile = builder.GetSlotOfFileName filename
+        let cache = TimeStampCache defaultTimeStamp
+        let ctok = AssumeCompilationThreadWithoutEvidence()
+        computeStampedReferencedAssemblies cache ctok
+        computeStampedFileNames cache ctok
         match tryGetBeforeSlot slotOfFile with
         | Some _ -> true
         | _ -> false
