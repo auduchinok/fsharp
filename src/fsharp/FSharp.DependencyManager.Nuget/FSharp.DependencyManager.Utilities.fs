@@ -71,7 +71,7 @@ module internal Utilities =
     let fsharpCompilerPath = Path.GetDirectoryName(typeof<DependencyManagerAttribute>.GetTypeInfo().Assembly.Location)
 
     // We are running on dotnet core if the executing mscorlib is System.Private.CoreLib
-    let isRunningOnCoreClr = (typeof<obj>.Assembly).FullName.StartsWith("System.Private.CoreLib", StringComparison.InvariantCultureIgnoreCase)
+    let isRunningOnCoreClr = true // (typeof<obj>.Assembly).FullName.StartsWith("System.Private.CoreLib", StringComparison.InvariantCultureIgnoreCase)
 
     let isWindows = 
         match Environment.OSVersion.Platform with
