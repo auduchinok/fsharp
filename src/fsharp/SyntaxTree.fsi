@@ -405,6 +405,8 @@ type SynTypeConstraint =
        typeArgs: SynType list *
        range: range
 
+    member Range: range
+
 /// List of type parameter declarations with optional type constraints,
 /// enclosed in `< ... >` (postfix) or `( ... )` (prefix), or a single prefix parameter.
 [<RequireQualifiedAccess>]

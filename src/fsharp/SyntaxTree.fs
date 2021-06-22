@@ -303,6 +303,20 @@ type SynTypeConstraint =
        typeArgs: SynType list *
        range: range
 
+    member x.Range =
+        match x with
+        | WhereTyparIsValueType(range=range)
+        | WhereTyparIsReferenceType(range=range)
+        | WhereTyparIsUnmanaged(range=range)
+        | WhereTyparSupportsNull(range=range)
+        | WhereTyparIsComparable(range=range)
+        | WhereTyparIsEquatable(range=range)
+        | WhereTyparDefaultsToType(range=range)
+        | WhereTyparSubtypeOfType(range=range)
+        | WhereTyparSupportsMember(range=range)
+        | WhereTyparIsEnum(range=range)
+        | WhereTyparIsDelegate(range=range) -> range
+
 [<RequireQualifiedAccess>]
 type SynTyparDecls =
     | PostfixList of decls: SynTyparDecl list * constraints: SynTypeConstraint list * range: range
