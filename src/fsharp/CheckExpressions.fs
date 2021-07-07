@@ -5019,6 +5019,7 @@ and TcPat warnOnUpper cenv env topValInfo vFlags (tpenv, names, takenNames) ty p
         | (Item.UnionCase _ | Item.ExnCase _) as item ->
             // Report information about the case occurrence to IDE
             CallNameResolutionSink cenv.tcSink (lidRange, env.NameEnv, item, emptyTyparInst, ItemOccurence.Pattern, env.eAccessRights)
+            CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, ty, env.AccessRights)
 
             let mkf, argTys, argNames = ApplyUnionCaseOrExnTypesForPat m cenv env ty item
             let numArgTys = argTys.Length
