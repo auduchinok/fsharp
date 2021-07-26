@@ -4674,6 +4674,7 @@ and TcSimplePat optArgsOK checkCxs cenv ty env (tpenv, names, takenNames) p =
 
     | SynSimplePat.Typed (p, cty, m) ->
         let cty', tpenv = TcTypeAndRecover cenv NewTyparsOK checkCxs ItemOccurence.UseInType env tpenv cty
+        CallExprHasTypeSink cenv.tcSink (p.Range, env.NameEnv, cty', env.AccessRights)
         match p with
         // Optional arguments on members
         | SynSimplePat.Id(_, _, _, _, true, _) -> UnifyTypes cenv env m ty (mkOptionTy cenv.g cty')
