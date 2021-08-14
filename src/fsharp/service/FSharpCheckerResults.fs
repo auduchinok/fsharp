@@ -1085,7 +1085,7 @@ type internal TypeCheckInfo
 
     member scope.TryGetExpressionType(range) =
         sResolutions.CapturedExpressionTypings 
-        |> Seq.tryFind (fun (_, _, _, m) -> equals m range)
+        |> Seq.tryFindBack (fun (_, _, _, m) -> equals m range)
         |> Option.map (fun (ty, _, _, _) -> FSharpType (cenv, ty))
 
     member scope.GetExpressionDisplayContext(range) =
@@ -1951,7 +1951,7 @@ type FSharpCheckFileResults
         | None -> None
         | Some (scope, _builderOpt) -> Some scope.TcImports
 
-    member __.GetTypeOfExpression(range: range) =
+    member _.GetTypeOfExpression(range: range) =
         threadSafeOp
             (fun () -> None)
             (fun scope -> scope.TryGetExpressionType(range))
