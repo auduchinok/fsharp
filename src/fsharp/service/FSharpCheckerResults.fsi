@@ -213,6 +213,7 @@ type public FSharpCheckFileResults =
     member DependencyFiles : string[]
 
     member GetTypeOfExpression: range -> FSharpType option
+    member GetExpressionDisplayContext: range -> FSharpDisplayContext option
 
     /// <summary>Get the items for a declaration list</summary>
     ///

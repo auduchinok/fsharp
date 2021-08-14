@@ -1087,6 +1087,12 @@ type internal TypeCheckInfo
         sResolutions.CapturedExpressionTypings 
         |> Seq.tryFind (fun (_, _, _, m) -> equals m range)
         |> Option.map (fun (ty, _, _, _) -> FSharpType (cenv, ty))
+
+    member scope.GetExpressionDisplayContext(range) =
+        sResolutions.CapturedExpressionTypings
+        |> Seq.tryFindBack (fun (_, _, _, m) -> equals m range)
+        |> Option.map (fun (_, q, _, _) -> FSharpDisplayContext(fun _ -> q.DisplayEnv))
+
     /// Get the auto-complete items at a location
     member _.GetDeclarations (parseResultsOpt, line, lineStr, partialName, getAllEntities, unresolvedOnly) =
         let isInterfaceFile = SourceFileImpl.IsInterfaceFile mainInputFileName
@@ -1949,6 +1955,11 @@ type FSharpCheckFileResults
         threadSafeOp
             (fun () -> None)
             (fun scope -> scope.TryGetExpressionType(range))
+
+    member _.GetExpressionDisplayContext(range: range) =
+        threadSafeOp
+            (fun () -> None)
+            (fun scope -> scope.GetExpressionDisplayContext(range))
 
     /// Intellisense autocompletions
     member _.GetDeclarationListInfo(parsedFileResults, line, lineText, partialName, ?getAllEntities, ?unresolvedOnly) =
