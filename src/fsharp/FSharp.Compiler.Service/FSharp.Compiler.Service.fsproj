@@ -25,6 +25,10 @@
     <Tailcalls>true</Tailcalls> <!-- .tail annotations always emitted for this binary, even in debug mode -->
     <FsYaccOutputFolder>$(IntermediateOutputPath)$(TargetFramework)\</FsYaccOutputFolder>
     <FsLexOutputFolder>$(IntermediateOutputPath)$(TargetFramework)\</FsLexOutputFolder>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>fcs.snk</AssemblyOriginatorKeyFile>
+    <VersionPrefix>2022.1.0</VersionPrefix>
+    <OtherFlags Condition="'$(SolutionName)' == 'FSharp.Compiler.Service'">$(OtherFlags) --version:$(VersionPrefix)</OtherFlags>
   </PropertyGroup>
 
   <PropertyGroup>
