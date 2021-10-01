@@ -5386,12 +5386,12 @@ opName:
   /* active pattern name */
   | LPAREN activePatternCaseNames BAR rparen 
      { let text = ("|" + String.concat "|" (List.rev $2) + "|")
-       ident(text, rhs2 parseState 2 3) }
+       ident(text, lhs parseState) }
                          
   /* partial active pattern name */
   | LPAREN activePatternCaseNames BAR UNDERSCORE BAR rparen 
      { let text = ("|" + String.concat "|" (List.rev $2) + "|_|" )
-       ident(text, rhs2 parseState 2 5) }
+       ident(text, lhs parseState) }
 
 /* An operator name, without surrounding parentheses */
 operatorName: 
