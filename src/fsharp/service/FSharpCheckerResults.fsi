@@ -207,6 +207,13 @@ type public FSharpParsingOptions =
 
     static member internal FromTcConfigBuilder: tcConfigB: TcConfigBuilder * sourceFiles: string[] * isInteractive: bool -> FSharpParsingOptions
 
+[<Class>]
+type RiderDeclarationListItems =
+    member Name: string
+    member SymbolUses: FSharpSymbolUse list
+    member NamespaceToOpen: string[]
+    member Description: ToolTipText
+
 /// A handle to the results of CheckFileInProject.
 [<Sealed>]
 type public FSharpCheckFileResults =
@@ -272,7 +279,10 @@ type public FSharpCheckFileResults =
     /// <param name="getAllEntities">
     ///    Function that returns all entities from current and referenced assemblies.
     /// </param>
-    member GetDeclarationListSymbols: parsedFileResults:FSharpParseFileResults option * line: int * lineText:string * partialName: PartialLongName * ?getAllEntities: (unit -> AssemblySymbol list) -> FSharpSymbolUse list list
+    /// <param name="isFromAttribute">
+    ///    Foo
+    /// </param>
+    member GetDeclarationListSymbols: parsedFileResults:FSharpParseFileResults option * line: int * lineText:string * partialName: PartialLongName * isFromAttribute: bool * ?getAllEntities: (unit -> AssemblySymbol list) -> RiderDeclarationListItems list
 
     /// <summary>Compute a formatted tooltip for the given location</summary>
     ///
