@@ -287,6 +287,17 @@ type GetPreciseCompletionListFromExprTypingsResult =
 
 type Names = string list
 
+type RiderDeclarationListItems(name, symbolUse: FSharpSymbolUse list, info, nsToOpen: string[]) =
+    member _.Name = name
+    member _.SymbolUses = symbolUse
+    member _.NamespaceToOpen = nsToOpen
+    member _.Description = 
+        match info with
+        | Choice1Of2 (items: CompletionItem list, infoReader, ad, m, denv) -> 
+            ToolTipText(items |> List.map (fun x -> FormatStructuredDescriptionOfItem true infoReader ad m denv x.ItemWithInst))
+        | Choice2Of2 result -> 
+            result
+
 /// A TypeCheckInfo represents everything we get back from the typecheck of a file.
 /// It acts like an in-memory database about the file.
 /// It is effectively immutable and not updated: when we re-typecheck we just drop the previous
@@ -1058,6 +1069,22 @@ type internal TypeCheckInfo
         | Item.Types _ | Item.ModuleOrNamespaces _ -> true
         | _ -> false
 
+    static let isOperatorItem name (items: CompletionItem list) =
+        match items with
+        | [item] ->
+            match item.Item with
+            | Item.Value _ | Item.MethodGroup _ | Item.UnionCase _ -> IsOperatorDisplayName name
+            | _ -> false
+        | _ -> false              
+
+    static let isActivePatternItem (items: CompletionItem list) =
+        match items with
+        | [item] ->
+            match item.Item with
+            | Item.Value vref -> IsActivePatternName vref.DisplayNameCoreMangled
+            | _ -> false
+        | _ -> false
+
     /// Find the most precise display context for the given line and column.
     member _.GetBestDisplayEnvForPos cursorPos  = GetBestEnvForPos cursorPos
 
@@ -1132,8 +1159,9 @@ type internal TypeCheckInfo
 
                 match declItemsOpt with
                 | None -> List.Empty
-                | Some (items, denv, _, m) ->
+                | Some (items, denv, ctx, m) ->
                     let items = if isInterfaceFile then items |> List.filter (fun x -> IsValidSignatureFileItem x.Item) else items
+                    let isAttributeApplicationContext = ctx = Some CompletionContext.AttributeApplication
 
                     //do filtering like Declarationset
                     let items = items |> RemoveExplicitlySuppressedCompletionItems g
@@ -1155,45 +1183,52 @@ type internal TypeCheckInfo
                             (d.Item.DisplayName, n))
 
                     // Remove all duplicates. We've put the types first, so this removes the DelegateCtor and DefaultStructCtor's.
-                    let items = items |> RemoveDuplicateCompletionItems g
-
-                    // Group by compiled name for types, display name for functions
-                    // (We don't want types with the same display name to be grouped as overloads)
                     let items =
-                        items |> List.groupBy (fun d ->
-                            match d.Item with
-                            | Item.Types (_,TType_app(tcref,_) :: _)
-                            | Item.ExnCase tcref -> tcref.LogicalName
-                            | Item.UnqualifiedType(tcref :: _)
-                            | Item.FakeInterfaceCtor (TType_app(tcref,_))
-                            | Item.DelegateCtor (TType_app(tcref,_)) -> tcref.CompiledName
-                            | Item.CtorGroup (_, cinfo :: _) ->
-                                cinfo.ApparentEnclosingTyconRef.CompiledName
-                            | _ -> d.Item.DisplayName)
+                        items
+                        |> RemoveDuplicateCompletionItems g
+                        |> List.groupBy (fun x ->
+                            match x.Unresolved with 
+                            | Some u -> u.DisplayName, u.Namespace
+                            | None -> x.Item.DisplayName, Array.Empty())
 
-                    // Filter out operators (and list)
-                    let items =
-                        // Check whether this item looks like an operator.
-                        let isOpItem(nm, item: CompletionItem list) =
-                            match item |> List.map (fun x -> x.Item) with
-                            | [Item.Value _]
-                            | [Item.MethodGroup(_,[_],_)] -> IsOperatorDisplayName nm
-                            | [Item.UnionCase _] -> IsOperatorDisplayName nm
-                            | _ -> false
+                        |> List.map (fun ((_, nsToOpen), items) -> 
+                            let item = items.Head
+                            let name = 
+                                match item.Unresolved with
+                                | Some u -> u.DisplayName
+                                | None -> item.Item.DisplayNameCore
 
-                        let isFSharpList nm = (nm = "[]") // list shows up as a Type and a UnionCase, only such entity with a symbolic name, but want to filter out of intellisense
+                            let cutAttributeSuffix (name: string) =
+                                if isAttributeApplicationContext && name.EndsWithOrdinal("Attribute") && name <> "Attribute" && IsAttribute infoReader item.Item then
+                                    name.[0..name.Length - "Attribute".Length - 1]
+                                else name
 
-                        items |> List.filter (fun (nm,items) -> not (isOpItem(nm,items)) && not(isFSharpList nm))
+                            let name = cutAttributeSuffix name
+                            nsToOpen, name, items)
+
+                        |> List.filter (fun (_textInDeclList, textInCode, items) -> 
+                            not (isOperatorItem textInCode items) && 
+                            not (isActivePatternItem items))
+
+                        |> List.map (fun (nsToOpen, name, itemsWithSameFullName) -> 
+                            let items =
+                                match itemsWithSameFullName |> List.partition (fun x -> x.Unresolved.IsNone) with
+                                | [], unresolved -> unresolved
+                                // if there are resolvable items, throw out unresolved to prevent duplicates like `Set` and `FSharp.Collections.Set`.
+                                | resolved, _ -> resolved
+                            nsToOpen, name, items)
 
                     let items =
                         // Filter out duplicate names
-                        items |> List.map (fun (_nm,itemsWithSameName) ->
+                        items |> List.map (fun (nsToOpen, name, itemsWithSameName) ->
                             match itemsWithSameName with
                             | [] -> failwith "Unexpected empty bag"
                             | items ->
-                                items
-                                |> List.map (fun item -> let symbol = FSharpSymbol.Create(cenv, item.Item)
-                                                         FSharpSymbolUse(denv, symbol, item.ItemWithInst.TyparInst, ItemOccurence.Use, m)))
+                                let symbolUses = 
+                                    items |> List.map (fun item ->
+                                        let symbol = FSharpSymbol.Create(cenv, item.Item)
+                                        FSharpSymbolUse(denv, symbol, item.ItemWithInst.TyparInst, ItemOccurence.Use, m))
+                                RiderDeclarationListItems(name, symbolUses, Choice1Of2 (items, infoReader, tcAccessRights, m, denv), nsToOpen))
 
                     //end filtering
                     items)
