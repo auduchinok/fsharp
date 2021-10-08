@@ -263,7 +263,7 @@ type public FSharpCheckFileResults =
     /// <param name="getAllEntities">
     ///    Function that returns all entities from current and referenced assemblies.
     /// </param>
-    member GetDeclarationListSymbols: parsedFileResults:FSharpParseFileResults option * line: int * lineText:string * partialName: PartialLongName * ?getAllEntities: (unit -> AssemblySymbol list) -> RiderDeclarationListItems list
+    member GetDeclarationListSymbols: parsedFileResults:FSharpParseFileResults option * line: int * lineText:string * partialName: PartialLongName * isFromAttribute: bool * ?getAllEntities: (unit -> AssemblySymbol list) -> RiderDeclarationListItems list
 
     /// <summary>Compute a formatted tooltip for the given location</summary>
     ///

@@ -1146,7 +1146,7 @@ type internal TypeCheckInfo
                 DeclarationListInfo.Error msg)
 
     /// Get the symbols for auto-complete items at a location
-    member _.GetDeclarationListSymbols (parseResultsOpt, line, lineStr, partialName, getAllEntities) =
+    member _.GetDeclarationListSymbols (parseResultsOpt, line, lineStr, partialName, isFromAttribute, getAllEntities) =
         let isInterfaceFile = SourceFileImpl.IsInterfaceFile mainInputFileName
         ErrorScope.Protect range0
             (fun () ->
@@ -1161,7 +1161,9 @@ type internal TypeCheckInfo
                 | None -> List.Empty
                 | Some (items, denv, ctx, m) ->
                     let items = if isInterfaceFile then items |> List.filter (fun x -> IsValidSignatureFileItem x.Item) else items
-                    let isAttributeApplicationContext = ctx = Some CompletionContext.AttributeApplication
+                    let denv = { denv with shortTypeNames = true }
+                    let isAttributeApplicationContext =
+                        isFromAttribute || ctx = Some CompletionContext.AttributeApplication
 
                     //do filtering like Declarationset
                     let items = items |> RemoveExplicitlySuppressedCompletionItems g
@@ -2019,10 +2021,10 @@ type FSharpCheckFileResults
         threadSafeOp (fun () -> DeclarationListInfo.Empty) (fun scope ->
             scope.GetDeclarations(parsedFileResults, line, lineText, partialName, getAllEntities))
 
-    member _.GetDeclarationListSymbols(parsedFileResults, line, lineText, partialName, ?getAllEntities) =
+    member _.GetDeclarationListSymbols(parsedFileResults, line, lineText, partialName, isFromAttribute: bool, ?getAllEntities) =
         let getAllEntities = defaultArg getAllEntities (fun() -> [])
         threadSafeOp (fun () -> []) (fun scope ->
-            scope.GetDeclarationListSymbols(parsedFileResults, line, lineText, partialName, getAllEntities))
+            scope.GetDeclarationListSymbols(parsedFileResults, line, lineText, partialName, isFromAttribute, getAllEntities))
 
     /// Resolve the names at the given location to give a data tip
     member _.GetToolTip(line, colAtEndOfNames, lineText, names, tokenTag) =
