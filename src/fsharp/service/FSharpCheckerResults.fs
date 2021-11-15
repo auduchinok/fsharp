@@ -1298,6 +1298,16 @@ type internal TypeCheckInfo
         let toolTipElement = FormatStructuredDescriptionOfItem displayFullName infoReader accessorDomain m denv itemWithInst
         ToolTipText [toolTipElement]
 
+    member _.ResolveNameAtLocation(cursorPos, plid: string list): FSharpSymbolUse option =
+        let (nenv, ad), m = GetBestEnvForPos cursorPos
+        let plid = plid |> List.map (SyntaxTreeOps.mkSynId m)
+        match ResolveExprLongIdent TcResultsSink.NoSink ncenv m ad nenv TypeNameResolutionInfo.Default plid with
+        | Exception _ -> None 
+        | Result (_, item, _) ->
+            let itemWithInst = ItemWithNoInst item
+            let symbol = FSharpSymbol.Create(cenv, item)
+            Some (FSharpSymbolUse(nenv.DisplayEnv,symbol,itemWithInst.TyparInst,ItemOccurence.Use,m))
+
     // GetToolTipText: return the "pop up" (or "Quick Info") text given a certain context.
     member _.GetStructuredToolTipText(line, lineStr, colAtEndOfNames, names) =
         let Compute() =
@@ -2062,6 +2072,10 @@ type FSharpCheckFileResults
         threadSafeOp (fun () -> None) (fun scope ->
             scope.GetSymbolUseAtLocation (line, lineText, colAtEndOfNames, names)
             |> Option.map (fun (sym, itemWithInst, denv,m) -> FSharpSymbolUse(denv,sym,itemWithInst.TyparInst,ItemOccurence.Use,m)))
+
+    member _.ResolveNamesAtLocation(cursorPos, plid: string list) =
+        threadSafeOp (fun () -> None) (fun scope ->
+            scope.ResolveNameAtLocation(cursorPos, plid))
 
     member _.GetMethodsAsSymbols (line, colAtEndOfNames, lineText, names) =
         threadSafeOp (fun () -> None) (fun scope ->

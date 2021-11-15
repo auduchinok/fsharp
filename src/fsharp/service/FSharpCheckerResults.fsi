@@ -263,6 +263,9 @@ type public FSharpCheckFileResults =
     /// <param name="getAllEntities">
     ///    Function that returns all entities from current and referenced assemblies.
     /// </param>
+    /// /// <param name="isFromAttribute">
+    ///    Foo
+    /// </param>
     member GetDeclarationListSymbols: parsedFileResults:FSharpParseFileResults option * line: int * lineText:string * partialName: PartialLongName * isFromAttribute: bool * ?getAllEntities: (unit -> AssemblySymbol list) -> RiderDeclarationListItems list
 
     /// <summary>Compute a formatted tooltip for the given location</summary>
@@ -321,6 +324,8 @@ type public FSharpCheckFileResults =
     /// <param name="lineText">The text of the line where the information is being requested.</param>
     /// <param name="names">The identifiers at the location where the information is being requested.</param>
     member GetSymbolUseAtLocation  : line:int * colAtEndOfNames:int * lineText:string * names:string list -> FSharpSymbolUse option
+
+    member ResolveNamesAtLocation: pos * string list -> FSharpSymbolUse option
 
     /// <summary>Get any extra colorization info that is available after the typecheck</summary>
     member GetSemanticClassification : range option -> SemanticClassificationItem[]

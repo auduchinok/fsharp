@@ -5701,7 +5701,7 @@ and TcExprUndelayed cenv (overallTy: OverallTy) env tpenv (synExpr: SynExpr) =
     // e: ty
     | SynExpr.Typed (synBodyExpr, synType, m) ->
         let tgtTy, tpenv = TcTypeAndRecover cenv NewTyparsOK CheckCxs ItemOccurence.UseInType env tpenv synType
-        UnifyOverallType cenv env m overallTy tgtTy
+        UnifyOverallType cenv env m overallTy tgtTy 
         let bodyExpr, tpenv = TcExpr cenv (MustConvertTo (false, tgtTy)) env tpenv synBodyExpr
         let bodyExpr2 = TcAdjustExprForTypeDirectedConversions cenv overallTy tgtTy env (* true  *) m bodyExpr
         bodyExpr2, tpenv
@@ -5709,7 +5709,7 @@ and TcExprUndelayed cenv (overallTy: OverallTy) env tpenv (synExpr: SynExpr) =
     // e :? ty
     | SynExpr.TypeTest (synInnerExpr, tgtTy, m) ->
         let innerExpr, srcTy, tpenv = TcExprOfUnknownType cenv env tpenv synInnerExpr
-        UnifyTypes cenv env m overallTy.Commit cenv.g.bool_ty
+        UnifyTypes cenv env m overallTy.Commit cenv.g.bool_ty 
         let tgtTy, tpenv = TcType cenv NewTyparsOK CheckCxs ItemOccurence.UseInType env tpenv tgtTy
         TcRuntimeTypeTest (*isCast*)false (*isOperator*)true cenv env.DisplayEnv m tgtTy srcTy
         let expr = mkCallTypeTest cenv.g m tgtTy innerExpr
@@ -5719,7 +5719,7 @@ and TcExprUndelayed cenv (overallTy: OverallTy) env tpenv (synExpr: SynExpr) =
     // during type checking, in particular prior to resolving overloads. This helps distinguish
     // its use at method calls from the use of the conflicting 'ref' mechanism for passing byref parameters
     | SynExpr.AddressOf (byref, synInnerExpr, opm, m) ->
-        TcExpr cenv overallTy env tpenv (mkSynPrefixPrim opm m (if byref then "~&" else "~&&") synInnerExpr)
+        TcExpr cenv overallTy env tpenv (mkSynPrefixPrim opm m (if byref then "~&" else "~&&") synInnerExpr) 
 
     | SynExpr.Upcast (synInnerExpr, _, m) | SynExpr.InferredUpcast (synInnerExpr, m) ->
         let innerExpr, srcTy, tpenv = TcExprOfUnknownType cenv env tpenv synInnerExpr
@@ -5754,19 +5754,19 @@ and TcExprUndelayed cenv (overallTy: OverallTy) env tpenv (synExpr: SynExpr) =
         expr, tpenv
 
     | SynExpr.Null m ->
-        AddCxTypeMustSupportNull env.DisplayEnv cenv.css m NoTrace overallTy.Commit
+        AddCxTypeMustSupportNull env.DisplayEnv cenv.css m NoTrace overallTy.Commit 
         mkNull m overallTy.Commit, tpenv
 
     | SynExpr.Lazy (synInnerExpr, m) ->
         let innerTy = NewInferenceType ()
-        UnifyTypes cenv env m overallTy.Commit (mkLazyTy cenv.g innerTy)
+        UnifyTypes cenv env m overallTy.Commit (mkLazyTy cenv.g innerTy) 
         let innerExpr, tpenv = TcExpr cenv (MustEqual innerTy) env tpenv synInnerExpr
         let expr = mkLazyDelayed cenv.g m innerTy (mkUnitDelayLambda cenv.g m innerExpr)
         expr, tpenv
 
     | SynExpr.Tuple (isExplicitStruct, args, _, m) ->
         TcPossiblyPropogatingExprLeafThenConvert (fun ty -> isAnyTupleTy cenv.g ty || isTyparTy cenv.g ty) cenv overallTy env m (fun overallTy ->
-            let tupInfo, argTys = UnifyTupleTypeAndInferCharacteristics env.eContextInfo cenv env.DisplayEnv m overallTy isExplicitStruct args
+            let tupInfo, argTys = UnifyTupleTypeAndInferCharacteristics env.eContextInfo cenv env.DisplayEnv m overallTy isExplicitStruct args 
 
             let flexes = argTys |> List.map (fun _ -> false)
             let args', tpenv = TcExprsWithFlexes cenv env m tpenv flexes argTys args
@@ -5776,7 +5776,7 @@ and TcExprUndelayed cenv (overallTy: OverallTy) env tpenv (synExpr: SynExpr) =
 
     | SynExpr.AnonRecd (isStruct, optOrigExpr, unsortedFieldExprs, mWholeExpr) ->
         TcPossiblyPropogatingExprLeafThenConvert (fun ty -> isAnonRecdTy cenv.g ty || isTyparTy cenv.g ty) cenv overallTy env mWholeExpr (fun overallTy ->
-            TcAnonRecdExpr cenv overallTy env tpenv (isStruct, optOrigExpr, unsortedFieldExprs, mWholeExpr)
+            TcAnonRecdExpr cenv overallTy env tpenv (isStruct, optOrigExpr, unsortedFieldExprs, mWholeExpr) 
         )
 
     | SynExpr.ArrayOrList (isArray, args, m) ->
@@ -5810,7 +5810,7 @@ and TcExprUndelayed cenv (overallTy: OverallTy) env tpenv (synExpr: SynExpr) =
        )
 
     | SynExpr.New (superInit, synObjTy, arg, mNewExpr) ->
-      let objTy, tpenv = TcType cenv NewTyparsOK CheckCxs ItemOccurence.Use env tpenv synObjTy
+      let objTy, tpenv = TcType cenv NewTyparsOK CheckCxs ItemOccurence.Use env tpenv synObjTy 
 
       TcPropagatingExprLeafThenConvert cenv overallTy objTy env (* true *) mNewExpr (fun () ->
         TcNewExpr cenv env tpenv objTy (Some synObjTy.Range) superInit arg mNewExpr

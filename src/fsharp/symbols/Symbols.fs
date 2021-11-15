@@ -924,6 +924,10 @@ type FSharpEntity(cenv: SymbolEnv, entity:EntityRef) =
         | Some (TType.TType_app(tref, _)) when tref.Stamp = cenv.g.attrib_OptionalArgumentAttribute.TyconRef.Stamp -> true
         | _ -> false
 
+    member x.AsType() =
+        let ty = generalizedTyconRef entity
+        FSharpType(cenv, ty)
+
     override x.Equals(other: obj) =
         box x === other ||
         match other with

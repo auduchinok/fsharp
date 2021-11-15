@@ -371,6 +371,8 @@ type FSharpEntity =
 
     member IsOptionalAttribute: bool
 
+    member AsType: unit -> FSharpType
+
 /// Represents a delegate signature in an F# symbol
 [<Class>] 
 type FSharpDelegateSignature =
