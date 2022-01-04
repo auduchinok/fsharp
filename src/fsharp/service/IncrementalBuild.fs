@@ -1193,7 +1193,7 @@ type IncrementalBuilder(initialState: IncrementalBuilderInitialState, state: Inc
             let stamps =
                 match fileSlot with
                 | -1 -> stamps
-                | takeMax -> stamps |> Seq.take (takeMax + 1) 
+                | fileSlot -> stamps |> Seq.take (fileSlot + 1) 
 
             stamps |> Seq.max
 
