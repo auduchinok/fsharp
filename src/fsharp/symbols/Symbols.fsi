@@ -370,6 +370,7 @@ type FSharpEntity =
     member TryGetMetadataText: unit -> ISourceText option
 
     member IsOptionalAttribute: bool
+    member AsType: unit -> FSharpType
 
 /// Represents a delegate signature in an F# symbol
 [<Class>] 

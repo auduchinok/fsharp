@@ -341,6 +341,8 @@ type public FSharpCheckFileResults =
     /// <param name="names">The identifiers at the location where the information is being requested.</param>
     member GetSymbolUseAtLocation  : line:int * colAtEndOfNames:int * lineText:string * names:string list -> FSharpSymbolUse option
 
+    member ResolveNamesAtLocation: pos * string list -> FSharpSymbolUse option
+
     /// <summary>Get any extra colorization info that is available after the typecheck</summary>
     member GetSemanticClassification : range option -> SemanticClassificationItem[]
 
