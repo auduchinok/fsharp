@@ -1870,6 +1870,7 @@ memberCore:
                          { attrList with Attributes = attrList.Attributes |> List.map (fun a -> { a with AppliesToGetterAndSetter = true } ) })
   
                  let attrs = attrs @ optAttrs
+                 let mBindLhs = unionRanges rangeStart mBindLhs
   
                  let trivia: SynBindingTrivia = { LetKeyword = None; EqualsRange = mEquals }
                  let binding = mkSynBinding (xmlDoc, bindingPat) (visNoLongerUsed, optInline, isMutable, mBindLhs, DebugPointAtBinding.NoneAtInvisible, optReturnType, expr, exprm, [], attrs, Some (memFlagsBuilder SynMemberKind.Member), trivia)
