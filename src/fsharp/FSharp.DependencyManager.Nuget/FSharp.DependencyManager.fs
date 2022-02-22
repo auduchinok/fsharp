@@ -174,6 +174,8 @@ type ResolveDependenciesResult (success: bool, stdOut: string array, stdError: s
 [<DependencyManager>] 
 type FSharpDependencyManager (outputDirectory:string option) =
 
+    let obj = obj()
+    
     let key = "nuget"
     let name = "MsBuild Nuget DependencyManager"
     let workingDirectory =
@@ -267,7 +269,7 @@ type FSharpDependencyManager (outputDirectory:string option) =
             | ".csx" -> "#r \""
             | _ -> "#r @\""
 
-        let generateAndBuildProjectArtifacts =
+        lock obj (fun _ ->
             let configIncludes = generateSourcesFromNugetConfigs scriptDirectory workingDirectory timeout
             let directiveLines = Seq.append packageManagerTextLines configIncludes
             let resolutionResult = prepareDependencyResolutionFiles (scriptExt, directiveLines, targetFrameworkMoniker, runtimeIdentifier, timeout)
@@ -288,5 +290,4 @@ type FSharpDependencyManager (outputDirectory:string option) =
             | None ->
                 let empty = Seq.empty<string>
                 ResolveDependenciesResult(resolutionResult.success, resolutionResult.stdOut, resolutionResult.stdErr, empty, empty, empty)
-
-        generateAndBuildProjectArtifacts :> obj
+        )
