@@ -17,6 +17,19 @@ type Ident =
 /// Represents a long identifier e.g. 'A.B.C'
 type LongIdent = Ident list
 
+/// Represents an operator identifier in F# code
+ [<RequireQualifiedAccess; NoEquality; NoComparison>]
+ type OperatorName =
+     /// (|A|B|)
+     | ActivePattern of lpr: range * id: Ident * rpr: range
+     /// (|A|_|)
+     | PartialActivePattern of lpr: range * id: Ident * rpr: range
+     /// (>=>)
+     | Operator of lpr: range * id: Ident * rpr: range
+
+     member Range: range
+     member Ident: Ident
+
 /// Represents a long identifier with possible '.' at end.
 ///
 /// Typically dotRanges.Length = lid.Length-1, but they may be same if (incomplete) code ends in a dot, e.g. "Foo.Bar."
@@ -1202,6 +1215,16 @@ type SynPat =
         accessibility: SynAccess option *
         range: range
 
+    | Operator of
+        operator: OperatorName *
+        accessibility: SynAccess option *
+        range: range
+
+    | LongIdent of
+        longDotId: LongIdentWithDots *
+        accessibility: SynAccess option *
+        range: range
+
     /// A typed pattern 'pat : type'
     | Typed of
         pat: SynPat *
@@ -1232,9 +1255,8 @@ type SynPat =
         rhsPat: SynPat *
         range: range
 
-    /// A long identifier pattern possibly with argument patterns
-    | LongIdent of
-        longDotId: LongIdentWithDots *
+    | ParametersOwner of
+        pattern: SynPat *
         propertyKeyword: PropertyKeyword option *
         extraId: Ident option * // holds additional ident for tooling
         typarDecls: SynValTyparDecls option * // usually None: temporary used to parse "f<'a> x = x"

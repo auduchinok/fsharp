@@ -18,6 +18,23 @@ type Ident (text: string, range: range) =
 
 type LongIdent = Ident list
 
+[<RequireQualifiedAccess; NoEquality; NoComparison>]
+ type OperatorName =
+     | ActivePattern of lpr: range * id: Ident * rpr: range
+     | PartialActivePattern of lpr: range * id: Ident * rpr: range
+     | Operator of lpr: range * id: Ident * rpr: range
+     member this.Range: range =
+         match this with
+         | OperatorName.ActivePattern(lpr=lpr; rpr=rpr)
+         | OperatorName.PartialActivePattern(lpr=lpr; rpr=rpr)
+         | OperatorName.Operator(lpr=lpr; rpr=rpr) -> unionRanges lpr rpr
+
+     member this.Ident: Ident =
+         match this with
+         | OperatorName.ActivePattern(id=id)
+         | OperatorName.PartialActivePattern(id=id)
+         | OperatorName.Operator(id=id) -> id
+
 type LongIdentWithDots =
     | LongIdentWithDots of id: LongIdent * dotRanges: range list
 
@@ -1075,6 +1092,16 @@ type SynPat =
         accessibility: SynAccess option *
         range: range
 
+    | Operator of
+        operator: OperatorName *
+        accessibility: SynAccess option *
+        range: range
+
+    | LongIdent of
+        longDotId: LongIdentWithDots *
+        accessibility: SynAccess option *
+        range: range
+
     | Typed of
         pat: SynPat *
         targetType: SynType *
@@ -1100,8 +1127,8 @@ type SynPat =
         rhsPat: SynPat *
         range: range
 
-    | LongIdent of
-        longDotId: LongIdentWithDots *
+    | ParametersOwner of
+        pattern: SynPat *
         propertyKeyword: PropertyKeyword option *
         extraId: Ident option * // holds additional ident for tooling
         typarDecls: SynValTyparDecls option * // usually None: temporary used to parse "f<'a> x = x"
@@ -1167,6 +1194,7 @@ type SynPat =
       | SynPat.Ands (range=m)
       | SynPat.As (range=m)
       | SynPat.LongIdent (range=m)
+      | SynPat.Operator (range=m)
       | SynPat.ArrayOrList (range=m)
       | SynPat.Tuple (range=m)
       | SynPat.Typed (range=m)
@@ -1179,6 +1207,7 @@ type SynPat =
       | SynPat.InstanceMember (range=m)
       | SynPat.OptionalVal (range=m)
       | SynPat.Paren (range=m)
+      | SynPat.ParametersOwner (range=m)
       | SynPat.FromParseError (range=m) -> m
 
 [<NoEquality; NoComparison; RequireQualifiedAccess>]
