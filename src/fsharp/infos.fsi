@@ -335,7 +335,7 @@ type ILMethInfo =
     /// drop the object argument.
     ///
     /// Any type parameters of the enclosing type are instantiated in the type returned.
-    member GetParamNamesAndTypes: amap:ImportMap * m:range * minst:TType list -> ParamNameAndType list
+    member GetParamNamesAndTypes: amap:ImportMap * m:range * minst:TType list * tinst:TType list -> ParamNameAndType list
 
     /// Get the argument types of the the IL method. If this is an C#-style extension method
     /// then drop the object argument.
@@ -554,6 +554,7 @@ type MethInfo =
 
     /// Get the ParamData objects for the parameters of a MethInfo
     member GetParamDatas: amap:ImportMap * m:range * minst:TType list -> ParamData list list
+    member GetParamDatasNoInstantiation: amap:ImportMap * m:range * minst:TType list -> ParamData list list
 
     /// Get the parameter types of a method info
     member GetParamTypes: amap:ImportMap * m:range * minst:TType list -> TType list list

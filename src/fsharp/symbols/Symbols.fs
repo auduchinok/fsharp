@@ -2046,7 +2046,7 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
         | M m | C m -> m.XmlDoc |> makeElaboratedXmlDoc
         | V v -> v.XmlDoc |> makeElaboratedXmlDoc
 
-    member x.CurriedParameterGroups = 
+    member private x.CurriedParameterGroupsImpl(instantiate) =
         checkIsResolved()
         match d with 
         | P p -> 
@@ -2060,7 +2060,11 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
 
         | E _ ->  []  |> makeReadOnlyCollection
         | M m | C m -> 
-            [ for argtys in m.GetParamDatas(cenv.amap, range0, m.FormalMethodInst) do 
+            let paramDatas =
+                if instantiate then
+                    m.GetParamDatas(cenv.amap, range0, m.FormalMethodInst)
+                else m.GetParamDatasNoInstantiation(cenv.amap, range0, m.FormalMethodInst)
+            [ for argtys in paramDatas do 
                  yield
                    [ for ParamData(isParamArrayArg, isInArg, isOutArg, optArgInfo, _callerInfo, nmOpt, _reflArgInfo, pty) in argtys do 
                 // INCOMPLETENESS: Attribs is empty here, so we can't look at attributes for
@@ -2102,7 +2106,13 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
                    |> makeReadOnlyCollection ]
              |> makeReadOnlyCollection
 
-    member x.ReturnParameter = 
+    member x.CurriedParameterGroups = 
+        x.CurriedParameterGroupsImpl(true)
+
+    member x.CurriedParameterGroupsNoInstantiation = 
+        x.CurriedParameterGroupsImpl(false)
+
+    member x.ReturnParameterImpl(instantiate) = 
         checkIsResolved()
         match d with 
         | E e -> 
@@ -2120,7 +2130,8 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
             FSharpParameter(cenv, rty, ValReprInfo.unnamedRetVal, x.DeclarationLocationOpt) 
         | M m | C m -> 
             // INCOMPLETENESS: Attribs is empty here, so we can't look at return attributes for .NET or F# methods
-            let rty = m.GetFSharpReturnTy(cenv.amap, range0, m.FormalMethodInst)
+            let inst = if instantiate then m.FormalMethodInst else []
+            let rty = m.GetFSharpReturnTy(cenv.amap, range0, inst)
             FSharpParameter(cenv, rty, ValReprInfo.unnamedRetVal, x.DeclarationLocationOpt) 
         | V v -> 
         match v.ValReprInfo with 
@@ -2133,6 +2144,11 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
             let _c, rty = GetTopTauTypeInFSharpForm cenv.g argInfos tau range0
             FSharpParameter(cenv, rty, retInfo, x.DeclarationLocationOpt) 
 
+    member x.ReturnParameter =
+        x.ReturnParameterImpl(true)
+
+    member x.ReturnParameterNoInstantiation =
+        x.ReturnParameterImpl(false)
 
     override _.Attributes = 
         if isUnresolved() then makeReadOnlyCollection [] else 

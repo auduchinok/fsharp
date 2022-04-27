@@ -876,6 +876,7 @@ type FSharpMemberOrFunctionOrValue =
     member DisplayName: string
 
     member CurriedParameterGroups: IList<IList<FSharpParameter>>
+    member CurriedParameterGroupsNoInstantiation: IList<IList<FSharpParameter>>
 
     /// <summary>Gets the overloads for the current method.</summary>
     ///

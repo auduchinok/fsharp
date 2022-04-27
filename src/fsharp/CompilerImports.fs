@@ -256,6 +256,7 @@ type AssemblyResolution =
 type ImportedBinary =
     { FileName: string
       RawMetadata: IRawFSharpAssemblyData
+      Ccu: CcuThunk option
 #if !NO_EXTENSIONTYPING
       ProviderGeneratedAssembly: System.Reflection.Assembly option
       IsProviderGenerated: bool
@@ -674,14 +675,14 @@ type RawFSharpAssemblyDataBackedByFileOnDisk (ilModule: ILModuleDef, ilAssemblyR
                 [ for iresource in resources do
                     if IsSignatureDataResource iresource then
                         let ccuName = GetSignatureDataResourceName iresource
-                        yield (ccuName, fun () -> iresource.GetBytes()) ]
+                        yield (ccuName, (fun () -> iresource.GetBytes()), None) ]
 
             let sigDataReaders =
                 if sigDataReaders.IsEmpty && List.contains ilShortAssemName externalSigAndOptData then
                     let sigFileName = Path.ChangeExtension(filename, "sigdata")
                     if not (FileSystem.FileExistsShim sigFileName) then
                         error(Error(FSComp.SR.buildExpectedSigdataFile (FileSystem.GetFullPathShim sigFileName), m))
-                    [ (ilShortAssemName, fun () -> FileSystem.OpenFileForReadShim(sigFileName, useMemoryMappedFile=true, shouldShadowCopy=true).AsByteMemory().AsReadOnly())]
+                    [ (ilShortAssemName, (fun () -> FileSystem.OpenFileForReadShim(sigFileName, useMemoryMappedFile=true, shouldShadowCopy=true).AsByteMemory().AsReadOnly()), None)]
                 else
                     sigDataReaders
             sigDataReaders
@@ -737,7 +738,7 @@ type RawFSharpAssemblyData (ilModule: ILModuleDef, ilAssemblyRefs) =
             [ for iresource in resources do
                 if IsSignatureDataResource iresource then
                     let ccuName = GetSignatureDataResourceName iresource
-                    yield (ccuName, fun () -> iresource.GetBytes()) ]
+                    yield (ccuName, (fun () -> iresource.GetBytes()), None) ]
 
          member _.GetRawFSharpOptimizationData(_, _, _) =
             ilModule.Resources.AsList()
@@ -1092,7 +1093,8 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
                   IsProviderGenerated=true
                   ProviderGeneratedStaticLinkMap= if g.isInteractive then None else Some (ProvidedAssemblyStaticLinkingMap.CreateNew())
                   ILScopeRef = ilScopeRef
-                  ILAssemblyRefs = ilAssemblyRefs }
+                  ILAssemblyRefs = ilAssemblyRefs
+                  Ccu = None }
             tcImports.RegisterDll dllinfo
 
             let ccuContents = Construct.NewCcuContents ilScopeRef m ilShortAssemName (Construct.NewEmptyModuleOrNamespaceType Namespace)
@@ -1517,7 +1519,7 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
 
         let ccuRawDataAndInfos =
             ilModule.GetRawFSharpSignatureData(m, ilShortAssemName, filename)
-            |> List.map (fun (ccuName, sigDataReader) ->
+            |> List.map (fun (ccuName, sigDataReader, ccuThunkOpt) ->
                 let data = GetSignatureData (filename, ilScopeRef, ilModule.TryGetILModuleDef(), sigDataReader)
 
                 let optDatas = Map.ofList optDataReaders
@@ -1530,30 +1532,36 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
 #endif
 
                 let codeDir = minfo.compileTimeWorkingDir
-                let ccuData: CcuData =
-                    { ILScopeRef=ilScopeRef
-                      Stamp = newStamp()
-                      FileName = Some filename
-                      QualifiedName= Some(ilScopeRef.QualifiedName)
-                      SourceCodeDirectory = codeDir (* note: in some cases we fix up this information later *)
-                      IsFSharp=true
-                      Contents = mspec
-#if !NO_EXTENSIONTYPING
-                      InvalidateEvent=invalidateCcu.Publish
-                      IsProviderGenerated = false
-                      ImportProvidedType = (fun ty -> ImportProvidedType (tcImports.GetImportMap()) m ty)
-#endif
-                      TryGetILModuleDef = ilModule.TryGetILModuleDef
-                      UsesFSharp20PlusQuotations = minfo.usesQuotations
-                      MemberSignatureEquality= (fun ty1 ty2 -> typeEquivAux EraseAll (tcImports.GetTcGlobals()) ty1 ty2)
-                      TypeForwarders = ImportILAssemblyTypeForwarders(tcImports.GetImportMap, m, ilModule.GetRawTypeForwarders())
-                      XmlDocumentationInfo =
-                        match tcConfig.xmlDocInfoLoader, ilModule.TryGetILModuleDef() with
-                        | Some xmlDocInfoLoader, Some ilModuleDef -> xmlDocInfoLoader.TryLoad(filename, ilModuleDef)
-                        | _ -> None
-                    }
 
-                let ccu = CcuThunk.Create(ccuName, ccuData)
+                let ccuThunk =
+                    match ccuThunkOpt with
+                    | Some ccuThunk -> ccuThunk
+                    | _ ->
+
+                    let ccuData: CcuData =
+                        { ILScopeRef=ilScopeRef
+                          Stamp = newStamp()
+                          FileName = Some filename
+                          QualifiedName= Some(ilScopeRef.QualifiedName)
+                          SourceCodeDirectory = codeDir (* note: in some cases we fix up this information later *)
+                          IsFSharp=true
+                          Contents = mspec
+#if !NO_EXTENSIONTYPING
+                          InvalidateEvent=invalidateCcu.Publish
+                          IsProviderGenerated = false
+                          ImportProvidedType = (fun ty -> ImportProvidedType (tcImports.GetImportMap()) m ty)
+#endif
+                          TryGetILModuleDef = ilModule.TryGetILModuleDef
+                          UsesFSharp20PlusQuotations = minfo.usesQuotations
+                          MemberSignatureEquality= (fun ty1 ty2 -> typeEquivAux EraseAll (tcImports.GetTcGlobals()) ty1 ty2)
+                          TypeForwarders = ImportILAssemblyTypeForwarders(tcImports.GetImportMap, m, ilModule.GetRawTypeForwarders())
+                          XmlDocumentationInfo =
+                            match tcConfig.xmlDocInfoLoader, ilModule.TryGetILModuleDef() with
+                            | Some xmlDocInfoLoader, Some ilModuleDef -> xmlDocInfoLoader.TryLoad(filename, ilModuleDef)
+                            | _ -> None
+                        }
+
+                    CcuThunk.Create(ccuName, ccuData)
 
                 let optdata =
                     lazy
@@ -1577,7 +1585,7 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
                             Some (fixupThunk ()))
 
                 let ccuinfo =
-                    { FSharpViewOfMetadata=ccu
+                    { FSharpViewOfMetadata=ccuThunk
                       AssemblyAutoOpenAttributes = ilModule.GetAutoOpenAttributes()
                       AssemblyInternalsVisibleToAttributes = ilModule.GetInternalsVisibleToAttributes()
                       FSharpOptimizationData=optdata
@@ -1592,7 +1600,7 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
                      match ilModule.TryGetILModuleDef() with
                      | None -> () // no type providers can be used without a real IL Module present
                      | Some ilModule ->
-                         let tps = tcImports.ImportTypeProviderExtensions (ctok, tcConfig, filename, ilScopeRef, ilModule.ManifestOfAssembly.CustomAttrs.AsList(), ccu.Contents, invalidateCcu, m)
+                         let tps = tcImports.ImportTypeProviderExtensions (ctok, tcConfig, filename, ilScopeRef, ilModule.ManifestOfAssembly.CustomAttrs.AsList(), ccuThunk.Contents, invalidateCcu, m)
                          ccuinfo.TypeProviders <- tps
 #else
                      ()
@@ -1657,6 +1665,10 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
             let phase2() = [tcImports.FindCcuInfo(ctok, m, ilShortAssemName, lookupOnly=true)]
             return Some(dllinfo, phase2)
         else
+            let ccuThunkOption = 
+                match assemblyData.GetRawFSharpSignatureData(m, ilShortAssemName, filename) with
+                | [_, _, Some ccuThunk] -> Some ccuThunk
+                | _ -> None
             let dllinfo =
                 { RawMetadata=assemblyData
                   FileName=filename
@@ -1666,7 +1678,8 @@ and [<Sealed>] TcImports(tcConfigP: TcConfigProvider, initialResolutions: TcAsse
                   ProviderGeneratedStaticLinkMap = None
 #endif
                   ILScopeRef = ilScopeRef
-                  ILAssemblyRefs = assemblyData.ILAssemblyRefs }
+                  ILAssemblyRefs = assemblyData.ILAssemblyRefs
+                  Ccu = ccuThunkOption }
             tcImports.RegisterDll dllinfo
             let phase2 =
                 if assemblyData.HasAnyFSharpSignatureDataAttribute then

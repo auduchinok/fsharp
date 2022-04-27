@@ -853,8 +853,9 @@ type ILMethInfo =
     /// drop the object argument.
     ///
     /// Any type parameters of the enclosing type are instantiated in the type returned.
-    member x.GetParamNamesAndTypes(amap, m, minst) =
-        x.ParamMetadata |> List.map (fun p -> ParamNameAndType(Option.map (mkSynId m) p.Name, ImportParameterTypeFromMetadata amap m p.Type p.CustomAttrs x.MetadataScope x.DeclaringTypeInst minst) )
+    member x.GetParamNamesAndTypes(amap, m, minst, tinst) =
+        let scope = x.MetadataScope
+        x.ParamMetadata |> List.map (fun p -> ParamNameAndType(Option.map (mkSynId m) p.Name, ImportParameterTypeFromMetadata amap m p.Type p.CustomAttrs scope tinst minst) )
 
     /// Get a reference to the method (dropping all generic instantiations), as an Abstract IL ILMethodRef.
     member x.ILMethodRef =
@@ -1592,16 +1593,19 @@ type MethInfo =
             MakeSlotSig(x.LogicalName, x.ApparentEnclosingType, formalEnclosingTypars, formalMethTypars, formalParams, formalRetTy)
 
     /// Get the ParamData objects for the parameters of a MethInfo
-    member x.GetParamDatas(amap, m, minst) =
+    member x.GetParamDatasImpl(amap, m, minst, instantiate) =
         let paramNamesAndTypes =
             match x with
             | ILMeth(_g, ilminfo, _) ->
-                [ ilminfo.GetParamNamesAndTypes(amap, m, minst)  ]
+                let tinst = if instantiate then x.DeclaringTypeInst else generalizeTypars ilminfo.DeclaringTyconRef.TyparsNoRange
+                let minst = if instantiate then minst else generalizeTypars ilminfo.FormalMethodTypars
+                [ ilminfo.GetParamNamesAndTypes(amap, m, minst, tinst) ]
             | FSMeth(g, _, vref, _) ->
                 let ty = x.ApparentEnclosingAppType
                 let items = ParamNameAndType.FromMember x.IsCSharpStyleExtensionMember g vref
-                let inst = GetInstantiationForMemberVal g x.IsCSharpStyleExtensionMember (ty, vref, minst)
-                items |> ParamNameAndType.InstantiateCurried inst
+                let minst = if instantiate then minst else generalizeTypars vref.Typars
+                let tinst = if instantiate then GetInstantiationForMemberVal g x.IsCSharpStyleExtensionMember (ty, vref, minst) else []
+                items |> ParamNameAndType.InstantiateCurried tinst
             | DefaultStructCtor _ ->
                 [[]]
 #if !NO_EXTENSIONTYPING
@@ -1623,6 +1627,12 @@ type MethInfo =
         let paramAttribs = x.GetParamAttribs(amap, m)
         (paramAttribs, paramNamesAndTypes) ||> List.map2 (List.map2 (fun (isParamArrayArg, isInArg, isOutArg, optArgInfo, callerInfo, reflArgInfo) (ParamNameAndType(nmOpt, pty)) ->
              ParamData(isParamArrayArg, isInArg, isOutArg, optArgInfo, callerInfo, nmOpt, reflArgInfo, pty)))
+
+    member x.GetParamDatas(amap, m, minst) =
+        x.GetParamDatasImpl(amap, m, minst, true)
+
+        member x.GetParamDatasNoInstantiation(amap, m, minst) =
+        x.GetParamDatasImpl(amap, m, minst, false)
 
     /// Get the ParamData objects for the parameters of a MethInfo
     member x.HasParamArrayArg(amap, m, minst) =

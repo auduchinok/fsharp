@@ -94,6 +94,7 @@ type ResolvedExtensionReference = ResolvedExtensionReference of string * Assembl
 type ImportedBinary = 
     { FileName: string
       RawMetadata: IRawFSharpAssemblyData
+      Ccu: CcuThunk option
 #if !NO_EXTENSIONTYPING
       ProviderGeneratedAssembly: System.Reflection.Assembly option
       IsProviderGenerated: bool
