@@ -1051,7 +1051,9 @@ val qualifiedMangledNameOfTyconRef: TyconRef -> string -> string
 
 val qualifiedInterfaceImplementationName: TcGlobals -> TType -> string -> string
 
-val trimPathByDisplayEnv: DisplayEnv -> string list -> string
+val trimPathByDisplayEnv: DisplayEnv -> ('a -> string) -> 'a list -> 'a list
+
+val trimDisplayPathByDisplayEnv: DisplayEnv -> string list -> string
 
 val prefixOfStaticReq: TyparStaticReq -> string
 

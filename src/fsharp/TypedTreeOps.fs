@@ -3037,29 +3037,37 @@ let qualifiedInterfaceImplementationName g (tt:TType) memberName =
 let qualifiedMangledNameOfTyconRef tcref nm = 
     String.concat "-" (Array.toList (fullMangledPathToTyconRef tcref) @ [ tcref.LogicalName + "-" + nm ])
 
-let rec firstEq p1 p2 = 
+let rec firstEq p1 f p2 = 
     match p1 with
     | [] -> true 
     | h1 :: t1 -> 
         match p2 with 
-        | h2 :: t2 -> h1 = h2 && firstEq t1 t2
-        | _ -> false 
+        | h2 :: t2 -> h1 = f h2 && firstEq t1 f t2
+        | _ -> false
 
 let rec firstRem p1 p2 = 
    match p1 with [] -> p2 | _ :: t1 -> firstRem t1 (List.tail p2)
 
-let trimPathByDisplayEnv denv path =
+let trimPathByDisplayEnv denv f path =
     let findOpenedNamespace openedPath = 
-        if firstEq openedPath path then 
-            let t2 = firstRem openedPath path
-            if t2 <> [] then Some(textOfPath t2 + ".")
-            else Some("")
+        if firstEq openedPath f path then 
+            match firstRem openedPath path with
+            | [] -> Some []
+            | t2 -> Some(t2)
         else None
 
     match List.tryPick findOpenedNamespace (denv.openTopPathsSorted.Force()) with
     | Some s -> s
-    | None -> if isNil path then "" else textOfPath path + "."
+    | None -> if isNil path then [] else path
 
+let trimDisplayPathByDisplayEnv denv path =
+    let path =
+        trimPathByDisplayEnv denv id path
+        |> List.map (DemangleGenericTypeName >> AddBackticksToIdentifierIfNeeded)
+        |> String.concat "."
+    match path with
+    | "" -> ""
+    | path -> $"{path}."
 
 let superOfTycon (g: TcGlobals) (tycon: Tycon) = 
     match tycon.TypeContents.tcaug_super with 

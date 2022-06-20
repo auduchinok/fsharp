@@ -177,6 +177,7 @@ module internal PrintUtilities =
                     String.dropSuffix name "Attribute"
                 else 
                     name
+            |> AddBackticksToIdentifierIfNeeded
 
         let tyconTagged =
             tagEntityRefName denv tcref demangled
@@ -200,7 +201,7 @@ module internal PrintUtilities =
                         let i = s.IndexOf(',')
                         if i <> -1 then s.Substring(0, i)+"<...>" // apparently has static params, shorten
                         else s)
-            let pathText = trimPathByDisplayEnv denv path
+            let pathText = trimDisplayPathByDisplayEnv denv path
             if pathText = "" then tyconTextL else leftL (tagUnknownEntity pathText) ^^ tyconTextL
 
     let layoutBuiltinAttribute (denv: DisplayEnv) (attrib: BuiltinAttribInfo) =
@@ -337,7 +338,7 @@ module PrintIL =
         if denv.shortTypeNames then 
             wordL tagged
           else
-            leftL (tagNamespace (trimPathByDisplayEnv denv p2)) ^^ wordL tagged
+            leftL (tagNamespace (trimDisplayPathByDisplayEnv denv p2)) ^^ wordL tagged
 
     let layoutILTypeRef denv tref =
         let path = fullySplitILTypeRef tref
@@ -851,8 +852,28 @@ module PrintTypes =
         // Layout a type application
         | TType_ucase (UnionCaseRef(tc, _), args)
         | TType_app (tc, args) ->
-          let prefix = usePrefix denv tc
-          layoutTypeAppWithInfoAndPrec denv env (layoutTyconRef denv tc) prec prefix args
+            let prefix = usePrefix denv tc
+            let pathWithArgs, args = splitTyargs tc args
+            let pathWithArgs = trimPathByDisplayEnv denv (fun (m, _, _) -> m) pathWithArgs
+
+            let pathL =
+                if denv.shortTypeNames then
+                    emptyL
+                else
+                    pathWithArgs
+                    |> List.map (fun (_, name, args) ->
+                        let name = AddBackticksToIdentifierIfNeeded name
+                        layoutTypeAppWithInfoAndPrec denv env (leftL (tagUnknownEntity name)) prec prefix args)
+                    |> sepListL (sepL (tagPunctuation "."))
+
+            let tcLayout = layoutTyconRef { denv with shortTypeNames = true } tc
+            let tcLayout =
+                if denv.shortTypeNames || pathWithArgs.IsEmpty then
+                    tcLayout
+                else
+                    pathL ^^ sepL (tagPunctuation ".") ^^ tcLayout
+
+            layoutTypeAppWithInfoAndPrec denv env tcLayout prec prefix args
 
         // Layout a tuple type 
         | TType_anon (anonInfo, tys) ->
@@ -890,6 +911,20 @@ module PrintTypes =
             layoutTyparRefWithInfo denv env r
 
         | TType_measure unt -> layoutMeasure denv unt
+
+    and splitTyargs (tc: TyconRef) (args: TypeInst) : (string * string * _ list) list * _ list =
+        let rec loop acc path args =
+            match path with
+            | [] -> List.rev acc, args
+            | (mangledName, entityKind) :: path ->
+                if entityKind <> ModuleOrNamespaceKind.ModuleOrType then
+                    loop ((mangledName, mangledName, []) :: acc) path args
+                else
+                    let (NameArityPair(name, arity)) = DecodeGenericTypeName mangledName
+                    let itemArgs, restArgs = List.splitAt arity args // todo: check args list has enough items?
+                    loop ((mangledName, name, itemArgs) :: acc) path restArgs 
+
+        loop [] tc.CompilationPath.AccessPath args
 
     /// Layout a list of types, separated with the given separator, either '*' or ','
     and layoutTypesWithInfoAndPrec denv env prec sep typl = 
