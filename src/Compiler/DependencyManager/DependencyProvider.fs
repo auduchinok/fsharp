@@ -523,9 +523,9 @@ type DependencyProvider internal (assemblyProbingPaths: AssemblyResolutionProbe 
         ConcurrentDictionary<_, Result<IResolveDependenciesResult, _>>(HashIdentity.Structural)
 
     new(assemblyProbingPaths: AssemblyResolutionProbe, nativeProbingRoots: NativeResolutionProbe) =
-        new DependencyProvider(Some assemblyProbingPaths, Some nativeProbingRoots)
+        new DependencyProvider(Option.ofObj assemblyProbingPaths, Option.ofObj nativeProbingRoots)
 
-    new(nativeProbingRoots: NativeResolutionProbe) = new DependencyProvider(None, Some nativeProbingRoots)
+    new(nativeProbingRoots: NativeResolutionProbe) = new DependencyProvider(None, Option.ofObj nativeProbingRoots)
 
     new() = new DependencyProvider(None, None)
 
