@@ -172,7 +172,7 @@ let inline unionRangeWithXmlDoc (xmlDoc: PreXmlDoc) range =
         unionRanges xmlDoc.Range range
 
 let mkSynAnonField (ty: SynType, xmlDoc) =
-    SynField([], false, None, ty, false, xmlDoc, None, unionRangeWithXmlDoc xmlDoc ty.Range)
+    SynField([], false, None, ty, false, xmlDoc, None, unionRangeWithXmlDoc xmlDoc ty.Range.StartRange)
 
 let mkSynNamedField (ident, ty: SynType, xmlDoc, m) =
     SynField([], false, Some ident, ty, false, xmlDoc, None, m)
