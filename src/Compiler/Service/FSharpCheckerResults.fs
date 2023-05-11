@@ -329,7 +329,7 @@ type RiderDeclarationListItems(name, symbolUse: FSharpSymbolUse list, info, nsTo
     member _.Description = 
         match info with
         | Choice1Of2 (items: CompletionItem list, infoReader, ad, m, denv) -> 
-            ToolTipText(items |> List.map (fun x -> FormatStructuredDescriptionOfItem true infoReader ad m denv x.ItemWithInst))
+            ToolTipText(items |> List.map (fun x -> FormatStructuredDescriptionOfItem true infoReader ad m denv x.ItemWithInst None None))
         | Choice2Of2 result -> 
             result
 
