@@ -360,7 +360,7 @@ type FSharpDependencyManager(outputDirectory: string option, _useResultsCache: b
 
     let prepareDependencyResolutionFiles
         (
-            scriptDirectory: string,
+            _scriptDirectory: string,
             scriptExt: string,
             directiveLines: (string * string) seq,
             targetFrameworkMoniker: string,
@@ -382,13 +382,9 @@ type FSharpDependencyManager(outputDirectory: string option, _useResultsCache: b
             |> List.map FSharpDependencyManager.formatPackageReference
             |> Seq.concat
 
-        let generatedNugetSources =
-            generateSourcesFromNugetConfigs scriptDirectory projectDirectory.Value timeout
-
         let packageReferenceText = String.Join(Environment.NewLine, packageReferenceLines)
 
         let projectPath = Path.Combine(getProjectDirectory().Value, "Project.fsproj")
-        let nugetPath = Path.Combine(projectDirectory.Value, "NuGet.config")
 
         let generateAndBuildProjectArtifacts =
             let writeFile path body =
@@ -402,16 +398,12 @@ type FSharpDependencyManager(outputDirectory: string option, _useResultsCache: b
                     .Replace("$(PACKAGEREFERENCES)", packageReferenceText)
                     .Replace("$(SCRIPTEXTENSION)", scriptExt)
 
-            let generateProjectNugetConfigFile =
-                generateProjectNugetConfigFile.Replace("$(NUGET_SOURCES)", generatedNugetSources)
-
             let timeout =
                 match package_timeout with
                 | Some _ -> package_timeout
                 | None -> Some timeout
 
             writeFile projectPath generateProjectFile
-            writeFile nugetPath generateProjectNugetConfigFile
             buildProject projectPath binLogPath timeout
 
         generateAndBuildProjectArtifacts
@@ -492,10 +484,6 @@ type FSharpDependencyManager(outputDirectory: string option, _useResultsCache: b
             | _ -> "#r @\""
 
         let generateAndBuildProjectArtifacts =
-            let configIncludes =
-                generateSourcesFromNugetConfigs scriptDirectory (getProjectDirectory().Value) timeout
-
-            let directiveLines = Seq.append packageManagerTextLines configIncludes
 
             // let resolutionHash =
                 // FSharpDependencyManager.computeHashForResolutionInputs (
