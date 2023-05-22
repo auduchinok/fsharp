@@ -1643,9 +1643,9 @@ type LexFilterImpl (
                             // 
                             //  namespace A.B.C 
                             //  ...
-                            //  
-                            //  namespace <-- close the namespace body context here 
-                        | _, CtxtNamespaceBody posNamespace :: _ when offsidePos.Column = posNamespace.Column && (match token with NAMESPACE -> true | _ -> false) -> -1
+                            //
+                            //  namespace <-- close the namespace body context here
+                        | NAMESPACE, CtxtNamespaceBody posNamespace :: _ when offsidePos.Column = posNamespace.Column -> -1
 
                         | _ -> 
                             // Allow a grace of >2 column positions for infix tokens, permits 
@@ -1691,8 +1691,7 @@ type LexFilterImpl (
         //  [< ... >]
         //  decl
 
-        | _, CtxtSeqBlock(NotFirstInSeqBlock, offsidePos, addBlockEnd) :: _ 
-                    when (match token with GREATER_RBRACK -> true | _ -> false) -> 
+        | GREATER_RBRACK, CtxtSeqBlock(NotFirstInSeqBlock, offsidePos, addBlockEnd) :: _ ->
             // Attribute-end tokens mean CtxtSeqBlock rule is NOT applied to the next token
             replaceCtxt tokenTup (CtxtSeqBlock (FirstInSeqBlock, offsidePos, addBlockEnd))
             reprocessWithoutBlockRule()
