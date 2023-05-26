@@ -16,7 +16,7 @@ open FSharp.Compiler.ParseHelpers
 open FSharp.Compiler.Parser
 open FSharp.Compiler.UnicodeLexing
 
-let debug = false
+let debug = true
 
 let stringOfPos (pos: Position) = sprintf "(%d:%d)" pos.OriginalLine pos.Column
 
@@ -724,10 +724,11 @@ type LexFilterImpl (
     //--------------------------------------------------------------------------
 
     let relaxWhitespace2 = lexbuf.SupportsFeature LanguageFeature.RelaxWhitespace2
+    // let strictBlockIndentation = true
 
     //let indexerNotationWithoutDot = lexbuf.SupportsFeature LanguageFeature.IndexerNotationWithoutDot
 
-    let pushCtxt tokenTup (newCtxt: Context) =
+    let pushCtxtStrict strict tokenTup (newCtxt: Context) = 
         let rec undentationLimit strict stack =
             match newCtxt, stack with
             | _, [] -> PositionWithColumn(newCtxt.StartPos, -1)
@@ -940,25 +941,36 @@ type LexFilterImpl (
             | _, (CtxtParen _ | CtxtFor _ | CtxtWhen _ | CtxtWhile _ | CtxtTypeDefns _ | CtxtMatch _ | CtxtModuleBody (_, true) | CtxtNamespaceBody _ | CtxtTry _ | CtxtMatchClauses _ | CtxtSeqBlock _ as limitCtxt :: _)
                       -> PositionWithColumn(limitCtxt.StartPos, limitCtxt.StartCol)
 
-        match newCtxt with
-        // Don't bother to check pushes of Vanilla blocks since we've
-        // always already pushed a SeqBlock at this position.
-        | CtxtVanilla _
-        // String interpolation inner expressions are not limited (e.g. multiline strings)
-        | CtxtParen((INTERP_STRING_BEGIN_PART _ | INTERP_STRING_PART _),_) -> ()
-        | _ ->
-            let p1 = undentationLimit true offsideStack
-            let c2 = newCtxt.StartCol
-            if c2 < p1.Column then
-                warn tokenTup
-                    (if debug then
-                        sprintf "possible incorrect indentation: this token is offside of context at position %s, newCtxt = %A, stack = %A, newCtxtPos = %s, c1 = %d, c2 = %d"
-                            (warningStringOfPosition p1.Position) newCtxt offsideStack (stringOfPos newCtxt.StartPos) p1.Column c2
-                     else
-                        FSComp.SR.lexfltTokenIsOffsideOfContextStartedEarlier(warningStringOfPosition p1.Position))
+        let isCorrectIndent = 
+            match newCtxt with
+            // Don't bother to check pushes of Vanilla blocks since we've
+            // always already pushed a SeqBlock at this position.
+            | CtxtVanilla _
+            // String interpolation inner expressions are not limited (e.g. multiline strings)
+            | CtxtParen((INTERP_STRING_BEGIN_PART _ | INTERP_STRING_PART _),_) -> true
+            | _ ->
+                let p1 = undentationLimit true offsideStack
+                let c2 = newCtxt.StartCol
+                let isCorrectIndent = c2 >= p1.Column
+                if not isCorrectIndent then
+                    warn tokenTup
+                        (if debug then
+                            sprintf "possible incorrect indentation: this token is offside of context at position %s, newCtxt = %A, stack = %A, newCtxtPos = %s, c1 = %d, c2 = %d"
+                                (warningStringOfPosition p1.Position) newCtxt offsideStack (stringOfPos newCtxt.StartPos) p1.Column c2
+                         else
+                            FSComp.SR.lexfltTokenIsOffsideOfContextStartedEarlier(warningStringOfPosition p1.Position))
+
+                isCorrectIndent
+
+        if strict && not isCorrectIndent then false else
+
         let newOffsideStack = newCtxt :: offsideStack
         if debug then dprintf "--> pushing, stack = %A\n" newOffsideStack
         offsideStack <- newOffsideStack
+        isCorrectIndent
+
+    let pushCtxt tokenTup newCtxt : unit =
+        pushCtxtStrict false tokenTup newCtxt |> ignore
 
     let rec popCtxt() =
         match offsideStack with
@@ -2029,7 +2041,7 @@ type LexFilterImpl (
         //  'let ... = ' ~~~> CtxtSeqBlock
         | EQUALS, CtxtLetDecl _ :: _ ->
             if debug then dprintf "CtxtLetDecl: EQUALS, pushing CtxtSeqBlock\n"
-            pushCtxtSeqBlock(true, AddBlockEnd)
+            pushCtxtSeqBlock2 tokenTup (true, AddBlockEnd)
             returnToken tokenLexbufState token
 
         | EQUALS, CtxtTypeDefns _ :: _ ->
@@ -2529,12 +2541,24 @@ type LexFilterImpl (
           | _ ->
               false
 
-    and pushCtxtSeqBlock(addBlockBegin, addBlockEnd) = pushCtxtSeqBlockAt (peekNextTokenTup(), addBlockBegin, addBlockEnd)
-    and pushCtxtSeqBlockAt(p: TokenTup, addBlockBegin, addBlockEnd) =
+    and pushCtxtSeqBlock2 fallbackToken (addBlockBegin, addBlockEnd) =
+        pushCtxtSeqBlockAt2 (peekNextTokenTup(), fallbackToken, addBlockBegin, addBlockEnd)
+
+    and pushCtxtSeqBlock(addBlockBegin, addBlockEnd) =
+        let tokenTup = peekNextTokenTup()
+        pushCtxtSeqBlockAt (tokenTup, addBlockBegin, addBlockEnd)
+
+    and pushCtxtSeqBlockAt2(p: TokenTup, fallbackToken, addBlockBegin, addBlockEnd) =
+         let pushed = pushCtxtStrict true p (CtxtSeqBlock(FirstInSeqBlock, startPosOfTokenTup p, addBlockEnd))
+         if not pushed then
+             pushCtxtStrict false p (CtxtSeqBlock(NotFirstInSeqBlock, startPosOfTokenTup fallbackToken, addBlockEnd)) |> ignore
          if addBlockBegin then
              if debug then dprintf "--> insert OBLOCKBEGIN \n"
-             delayToken(pool.UseLocation(p, OBLOCKBEGIN))
-         pushCtxt p (CtxtSeqBlock(FirstInSeqBlock, startPosOfTokenTup p, addBlockEnd))
+             let token = if pushed then p else fallbackToken
+             delayToken(pool.UseLocation(token, OBLOCKBEGIN))
+
+    and pushCtxtSeqBlockAt (p: TokenTup, addBlockBegin, addBlockEnd) =
+        pushCtxtSeqBlockAt2 (p, p, addBlockBegin, addBlockEnd)
 
     let rec swTokenFetch() =
         let tokenTup = popNextTokenTup()

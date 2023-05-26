@@ -2240,7 +2240,7 @@ typarDeclList:
   | typarDeclList COMMA typarDecl { $3 :: $1 }
   | typarDecl { [$1] }
 
-typarDecl :
+typarDecl:
   | opt_attributes typar
       { SynTyparDecl($1, $2) }
 
@@ -2943,10 +2943,13 @@ typedExprWithStaticOptimizationsBlock:
         let a, b = $2
         (exprFromParseError a, b) }
 
+  | OBLOCKBEGIN recover
+      { arbExpr ("typedExprWithStaticOptimizationsBlock1", (rhs parseState 1)), [] }
+
   | typedExprWithStaticOptimizations
       { $1 }
 
-typedExprWithStaticOptimizations :
+typedExprWithStaticOptimizations:
   | typedSequentialExpr opt_staticOptimizations
       { $1, List.rev $2 }
 
@@ -4981,7 +4984,7 @@ seps_recd:
 
 
 /* identifier can start from the underscore */
-pathOrUnderscore :
+pathOrUnderscore:
   | path
     { mkRecdField $1 }
 
