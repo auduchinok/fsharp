@@ -7342,6 +7342,7 @@ and TcAssertExpr cenv overallTy env (m: range) tpenv x =
     TcExpr cenv overallTy env tpenv callDiagnosticsExpr
 
 and TcRecdExpr cenv overallTy env tpenv (inherits, withExprOpt, synRecdFields, mWholeExpr) =
+    CallExprHasTypeSink cenv.tcSink (mWholeExpr, env.NameEnv, overallTy, env.eAccessRights)
     let g = cenv.g
 
     let requiresCtor = (GetCtorShapeCounter env = 1) // Get special expression forms for constructors

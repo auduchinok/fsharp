@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
     <metadata>
-        <version>2023.1.0</version>
+        <version>2023.2.2</version>
         <id>JetBrains.FSharp.Compiler.Service</id>
         <description>The F# compiler services package contains a custom build of the F# compiler that exposes additional functionality for implementing F# language bindings, additional tools based on the compiler or refactoring tools. The package also includes F# interactive service that can be used for embedding F# scripting into your applications.</description>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
@@ -15,12 +15,14 @@
         </dependencies>
     </metadata>
     <files>
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Debug\netstandard2.0\FSharp.Compiler.Service.dll" target="lib\netstandard2.0" />
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Debug\netstandard2.0\FSharp.Compiler.Service.xml" target="lib\netstandard2.0" />
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Debug\netstandard2.0\FSharp.DependencyManager.Nuget.dll" target="lib\netstandard2.0" />
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Debug\netstandard2.0\FSharp.DependencyManager.Nuget.xml" target="lib\netstandard2.0" />
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Debug\netstandard2.0\System.Diagnostics.DiagnosticSource.dll" target="lib\netstandard2.0" />
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\FSharp.Compiler.Service.dll" target="lib\netstandard2.0" />
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\FSharp.Compiler.Service.xml" target="lib\netstandard2.0" />
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\FSharp.DependencyManager.Nuget.dll" target="lib\netstandard2.0" />
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\FSharp.DependencyManager.Nuget.xml" target="lib\netstandard2.0" />
 
-        <!-- <file src="..\..\artifacts\bin\FSharp.Compiler.Interactive.Settings\Debug\netstandard2.0\FSharp.Compiler.Interactive.Settings.dll" target="lib\netstandard2.0" /> -->
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\System.Diagnostics.DiagnosticSource.dll" target="lib\netstandard2.0" />
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\System.Collections.Immutable.dll" target="lib\netstandard2.0" />
+
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Interactive.Settings\Debug\netstandard2.0\FSharp.Compiler.Interactive.Settings.dll" target="lib\netstandard2.0" />
     </files>
 </package>
