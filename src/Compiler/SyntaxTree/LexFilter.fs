@@ -747,6 +747,9 @@ type LexFilterImpl (
             // ignore Vanilla because a SeqBlock is always coming
             | _, CtxtVanilla _ :: rest -> undentationLimit strict rest
 
+            |  CtxtSeqBlock(FirstInSeqBlock, _, _), (CtxtDo _ as limitCtxt) :: CtxtSeqBlock _ :: (CtxtTypeDefns _ | CtxtModuleBody _) :: _ ->
+                PositionWithColumn(limitCtxt.StartPos, limitCtxt.StartCol + 1)
+
             | _, CtxtSeqBlock _ :: rest when not strict -> undentationLimit strict rest
             | _, CtxtParen _ :: rest when not strict -> undentationLimit strict rest
 
@@ -2158,7 +2161,7 @@ type LexFilterImpl (
         | (DO | DO_BANG), _ ->
             if debug then dprintf "DO: pushing CtxtSeqBlock, tokenStartPos = %a\n" outputPos tokenStartPos
             pushCtxt tokenTup (CtxtDo tokenStartPos)
-            pushCtxtSeqBlock tokenTup AddBlockEnd
+            tryPushCtxtSeqBlock tokenTup AddBlockEnd
             returnToken tokenLexbufState (match token with DO -> ODO | DO_BANG -> ODO_BANG | _ -> failwith "unreachable")
 
         // The r.h.s. of an infix token begins a new block.
