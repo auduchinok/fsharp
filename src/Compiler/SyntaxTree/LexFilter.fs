@@ -18,9 +18,9 @@ open FSharp.Compiler.UnicodeLexing
 
 let debug = false
 
-let stringOfPos (pos: Position) = sprintf "(%d:%d)" pos.OriginalLine pos.Column
+let stringOfPos (pos: Position) = sprintf "(%d:%d)" pos.Line pos.Column
 
-let outputPos os (pos: Position) = Printf.fprintf os "(%d:%d)" pos.OriginalLine pos.Column
+let outputPos os (pos: Position) = Printf.fprintf os "(%d:%d)" pos.Line pos.Column
 
 /// Used for warning strings, which should display columns as 1-based and display
 /// the lines after taking '# line' directives into account (i.e. do not use
@@ -750,6 +750,9 @@ type LexFilterImpl (
             |  CtxtSeqBlock(FirstInSeqBlock, _, _), (CtxtDo _ as limitCtxt) :: CtxtSeqBlock _ :: (CtxtTypeDefns _ | CtxtModuleBody _) :: _ ->
                 PositionWithColumn(limitCtxt.StartPos, limitCtxt.StartCol + 1)
 
+            | CtxtWithAsAugment _, (CtxtInterfaceHead _ (*| CtxtMemberHead _*) | CtxtException _ | CtxtTypeDefns _ as limitCtxt :: _rest) ->
+                PositionWithColumn(limitCtxt.StartPos, limitCtxt.StartCol + 1)
+
             | _, CtxtSeqBlock _ :: rest when not strict -> undentationLimit strict rest
             | _, CtxtParen _ :: rest when not strict -> undentationLimit strict rest
 
@@ -978,12 +981,14 @@ type LexFilterImpl (
 
                 isCorrectIndent
 
-        if strict && not isCorrectIndent then false else
-
-        let newOffsideStack = newCtxt :: offsideStack
-        if debug then dprintf "--> pushing, stack = %A\n" newOffsideStack
-        offsideStack <- newOffsideStack
-        true
+        if strict && not isCorrectIndent then
+            if debug then dprintf "!-> not pushed: %A, stack = %A\n" newCtxt offsideStack
+            false
+        else
+            let newOffsideStack = newCtxt :: offsideStack
+            if debug then dprintf "--> pushing, stack = %A\n" newOffsideStack
+            offsideStack <- newOffsideStack
+            true
 
     let pushCtxt tokenTup newCtxt =
         tryPushCtxt false tokenTup newCtxt |> ignore
@@ -1589,7 +1594,7 @@ type LexFilterImpl (
                 | _ ->
                     delayToken tokenTup
                     pushCtxt tokenTup (CtxtNamespaceBody namespaceTokenPos)
-                    pushCtxtSeqBlockAt false tokenTup tokenTup AddBlockEnd
+                    pushCtxtSeqBlockAt false false tokenTup tokenTup AddBlockEnd
                     hwTokenFetch false
 
         //  Transition rule. CtxtModuleHead ~~~> push CtxtModuleBody; push CtxtSeqBlock
@@ -2303,7 +2308,7 @@ type LexFilterImpl (
             if debug then dprintf "WITH\n"
             if debug then dprintf "WITH --> NO MATCH, pushing CtxtWithAsAugment (type augmentation), stack = %A" stack
             pushCtxt tokenTup (CtxtWithAsAugment tokenStartPos)
-            pushCtxtSeqBlock tokenTup AddBlockEnd
+            tryPushCtxtSeqBlock tokenTup AddBlockEnd
             returnToken tokenLexbufState token
 
         | FUNCTION, _ ->
@@ -2564,24 +2569,28 @@ type LexFilterImpl (
               false
 
     and pushCtxtSeqBlock fallbackToken addBlockEnd =
-        pushCtxtSeqBlockAt strictIndentation fallbackToken (peekNextTokenTup()) addBlockEnd
+        pushCtxtSeqBlockAt strictIndentation true fallbackToken (peekNextTokenTup ()) addBlockEnd
 
-    and pushCtxtSeqBlockAt strict (fallbackToken: TokenTup) (tokenTup: TokenTup) addBlockEnd =
+    and tryPushCtxtSeqBlock fallbackToken addBlockEnd =
+        pushCtxtSeqBlockAt strictIndentation false fallbackToken (peekNextTokenTup ()) addBlockEnd
+
+    and pushCtxtSeqBlockAt strict useFallback (fallbackToken: TokenTup) (tokenTup: TokenTup) addBlockEnd =
          let pushed = tryPushCtxt strict tokenTup (CtxtSeqBlock(FirstInSeqBlock, startPosOfTokenTup tokenTup, addBlockEnd))
-         if not pushed then
+         if not pushed && useFallback then
              // The upcoming token isn't sufficiently indented to start the new context.
              // The parser expects proper contexts structure, so we push a new recovery context at the fallback token position.
              pushCtxt fallbackToken (CtxtSeqBlock(NotFirstInSeqBlock, startPosOfTokenTup fallbackToken, addBlockEnd))
 
-         let addBlockBegin = 
-             match addBlockEnd with
-             | AddBlockEnd -> true
-             | _ -> false
+         if pushed || useFallback then
+             let addBlockBegin =
+                 match addBlockEnd with
+                 | AddBlockEnd -> true
+                 | _ -> false
 
-         if addBlockBegin then
-             if debug then dprintf "--> insert OBLOCKBEGIN \n"
-             let ctxtToken = if pushed then tokenTup else fallbackToken
-             delayToken(pool.UseLocation(ctxtToken, OBLOCKBEGIN))
+             if addBlockBegin then
+                 if debug then dprintf "--> insert OBLOCKBEGIN \n"
+                 let ctxtToken = if pushed then tokenTup else fallbackToken
+                 delayToken(pool.UseLocation(ctxtToken, OBLOCKBEGIN))
 
     let rec swTokenFetch() =
         let tokenTup = popNextTokenTup()
