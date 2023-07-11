@@ -1654,6 +1654,28 @@ tyconDefn:
            let trivia: SynTypeDefnTrivia = { LeadingKeyword = leadingKeyword; EqualsRange = Some mEquals; WithKeyword = mWith }
            SynTypeDefn($1, tcDefRepr, members, memberCtorPattern, mWhole, trivia) }
 
+  | typeNameInfo opt_attributes opt_access opt_HIGH_PRECEDENCE_APP opt_simplePatterns optAsSpec EQUALS recover
+     { let vis, spats, az = $3, $5, $6
+       let (SynComponentInfo(longId = lid)) = $1
+       // Gets the XML doc comments prior to the implicit constructor
+       let xmlDoc = grabXmlDoc (parseState, $2, 2)
+       let m = match lid with [] -> rhs parseState 1 | _ -> rangeOfLid lid
+       let mName = $1.Range
+       let mEquals = rhs parseState 7
+
+       let members =
+           spats
+           |> Option.map (fun spats ->
+               [SynMemberDefn.ImplicitCtor(vis, $2, spats, Option.bind snd az, xmlDoc, m, { AsKeyword = Option.map fst az })])
+           |> Option.defaultValue []
+
+       let mWhole = rhs2 parseState 1 7
+
+       fun leadingKeyword ->
+           let trivia = { SynTypeDefnTrivia.Zero with LeadingKeyword = leadingKeyword; EqualsRange = Some mEquals }
+           SynTypeDefn($1, SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.None(mName), mName), members, None, mName, trivia) }
+
+
   | typeNameInfo opt_attributes opt_access opt_HIGH_PRECEDENCE_APP opt_simplePatterns optAsSpec recover
      { let vis, spats, az = $3, $5, $6
        let (SynComponentInfo(longId = lid)) = $1
