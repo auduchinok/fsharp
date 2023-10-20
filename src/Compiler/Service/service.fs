@@ -342,7 +342,7 @@ type BackgroundCompiler
 #if !NO_TYPEPROVIDERS
                 // Register the behaviour that responds to CCUs being invalidated because of type
                 // provider Invalidate events. This invalidates the configuration in the build.
-                builder.ImportsInvalidatedByTypeProvider.Add(fun () -> self.InvalidateConfiguration(options, userOpName))
+                builder.ImportsInvalidatedByTypeProvider.Add(fun () -> self.InvalidateConfiguration(options, userOpName, true))
 #endif
 
                 // Register the callback called just before a file is typechecked by the background builder (without recording
@@ -416,6 +416,11 @@ type BackgroundCompiler
                 let getBuilderNode = GraphNode(CreateOneIncrementalBuilder(options, userOpName))
                 incrementalBuildersCache.Set(AnyCallerThread, options, getBuilderNode)
                 getBuilderNode)
+
+    let removeBuilder options =
+        lock gate (fun () ->
+            incrementalBuildersCache.RemoveAnySimilar(AnyCallerThread, options)
+        )
 
     let createAndGetBuilder (options, userOpName) =
         node {
@@ -1222,7 +1227,7 @@ type BackgroundCompiler
         }
         |> Cancellable.toAsync
 
-    member bc.InvalidateConfiguration(options: FSharpProjectOptions, userOpName) =
+    member bc.InvalidateConfiguration(options: FSharpProjectOptions, userOpName, createBuilder) =
         use _ =
             Activity.start
                 "BackgroundCompiler.InvalidateConfiguration"
@@ -1236,8 +1241,10 @@ type BackgroundCompiler
                 for sourceFile in options.SourceFiles do
                     checkFileInProjectCache.RemoveAnySimilar(ltok, (sourceFile, 0L, options)))
 
-            let _ = createBuilderNode (options, userOpName, CancellationToken.None)
-            ()
+            if createBuilder then
+                createBuilderNode (options, userOpName, CancellationToken.None) |> ignore
+            else
+                removeBuilder options
 
     member bc.ClearCache(options: seq<FSharpProjectOptions>, _userOpName) =
         use _ = Activity.start "BackgroundCompiler.ClearCache" [| Activity.Tags.userOpName, _userOpName |]
@@ -1529,7 +1536,7 @@ type FSharpChecker
     /// For example, dependent references may have been deleted or created.
     member _.InvalidateConfiguration(options: FSharpProjectOptions, ?userOpName: string) =
         let userOpName = defaultArg userOpName "Unknown"
-        backgroundCompiler.InvalidateConfiguration(options, userOpName)
+        backgroundCompiler.InvalidateConfiguration(options, userOpName, false)
 
     /// Clear the internal cache of the given projects.
     member _.ClearCache(options: seq<FSharpProjectOptions>, ?userOpName: string) =
