@@ -1705,6 +1705,14 @@ type internal TypeCheckInfo
             | _ -> false
         | _ -> false
 
+    let isSuggestion (items: CompletionItem list) =
+        match items with
+        | [item] ->
+            match item.Kind with
+            | CompletionItemKind.SuggestedName -> true
+            | _ -> false
+        | _ -> false
+
 
     /// Find the most precise display context for the given line and column.
     member _.GetBestDisplayEnvForPos cursorPos = GetBestEnvForPos cursorPos
@@ -1883,7 +1891,8 @@ type internal TypeCheckInfo
 
                          |> List.filter (fun (_textInDeclList, textInCode, items) -> 
                              not (isOperatorItem textInCode items) && 
-                             not (isActivePatternItem items))
+                             not (isActivePatternItem items) &&
+                             not (isSuggestion items))
 
                          |> List.map (fun (nsToOpen, name, itemsWithSameFullName) -> 
                              let items =

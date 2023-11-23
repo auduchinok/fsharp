@@ -1874,7 +1874,7 @@ type FSharpMemberOrFunctionOrValue(cenv, d:FSharpMemberOrValData, item) =
     member _.AccessorProperty =
          let makeProp p vref =
              let pinfo = FSProp(cenv.g, p, Some vref, None)
-             FSharpMemberOrFunctionOrValue(cenv, P pinfo, Item.Property (pinfo.PropertyName, [pinfo]))
+             FSharpMemberOrFunctionOrValue(cenv, P pinfo, Item.Property (pinfo.PropertyName, [pinfo], None))
 
          if isUnresolved() then None else 
 
