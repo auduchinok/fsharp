@@ -765,8 +765,10 @@ type ProvidedMethodBase (x: MethodBase, ctxt) =
     static member TaintedGetHashCode (x: Tainted<ProvidedMethodBase>) =            
         Tainted.GetHashCodeTainted (x.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName))) 
 
-    static member TaintedEquals (pt1: Tainted<ProvidedMethodBase>, pt2: Tainted<ProvidedMethodBase>) = 
-        Tainted.PhysicallyEqTainted (pt1.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName))) (pt2.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName)))
+    static member TaintedEquals (pt1: Tainted<ProvidedMethodBase>, pt2: Tainted<ProvidedMethodBase>) =
+        Tainted.EqTainted
+            (pt1.PApplyNoFailure(fun st -> if isNotNull st.Handle then st.Handle :> obj else st))
+            (pt2.PApplyNoFailure(fun st -> if isNotNull st.Handle then st.Handle :> obj else st))
 
     abstract GetStaticParametersForMethod: provider: ITypeProvider -> ProvidedParameterInfo[]
     default _.GetStaticParametersForMethod(provider: ITypeProvider) = 
@@ -929,7 +931,9 @@ type ProvidedPropertyInfo (x: PropertyInfo, ctxt) =
         Tainted.GetHashCodeTainted (x.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName))) 
 
     static member TaintedEquals (pt1: Tainted<ProvidedPropertyInfo>, pt2: Tainted<ProvidedPropertyInfo>) = 
-        Tainted.PhysicallyEqTainted (pt1.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName))) (pt2.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName)))
+        Tainted.EqTainted
+            (pt1.PApplyNoFailure(fun st -> if isNotNull st.Handle then st.Handle :> obj else st))
+            (pt2.PApplyNoFailure(fun st -> if isNotNull st.Handle then st.Handle :> obj else st))
 
 [<AllowNullLiteral>] 
 type ProvidedEventInfo (x: EventInfo, ctxt) = 
@@ -959,7 +963,9 @@ type ProvidedEventInfo (x: EventInfo, ctxt) =
         Tainted.GetHashCodeTainted (x.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName))) 
 
     static member TaintedEquals (pt1: Tainted<ProvidedEventInfo>, pt2: Tainted<ProvidedEventInfo>) = 
-        Tainted.PhysicallyEqTainted (pt1.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName))) (pt2.PApplyNoFailure(fun st -> (st.Name, st.DeclaringType.Assembly.FullName, st.DeclaringType.FullName)))
+        Tainted.EqTainted
+            (pt1.PApplyNoFailure(fun st -> if isNotNull st.Handle then st.Handle :> obj else st))
+            (pt2.PApplyNoFailure(fun st -> if isNotNull st.Handle then st.Handle :> obj else st))
 
 [<AllowNullLiteral>] 
 type ProvidedConstructorInfo (x: ConstructorInfo, ctxt) = 
