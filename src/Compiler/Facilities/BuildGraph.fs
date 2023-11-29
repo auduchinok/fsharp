@@ -17,12 +17,14 @@ let wrapThreadStaticInfo computation =
     async {
         let diagnosticsLogger = DiagnosticsThreadStatics.DiagnosticsLogger
         let phase = DiagnosticsThreadStatics.BuildPhase
+        let ct = Cancellable.Token
 
         try
             return! computation
         finally
             DiagnosticsThreadStatics.DiagnosticsLogger <- diagnosticsLogger
             DiagnosticsThreadStatics.BuildPhase <- phase
+            Cancellable.Token <- ct
     }
 
 type Async<'T> with
@@ -125,6 +127,7 @@ type NodeCode private () =
     static member RunImmediate(computation: NodeCode<'T>, ct: CancellationToken) =
         let diagnosticsLogger = DiagnosticsThreadStatics.DiagnosticsLogger
         let phase = DiagnosticsThreadStatics.BuildPhase
+        let oldCt = Cancellable.Token
 
         try
             try
@@ -132,6 +135,7 @@ type NodeCode private () =
                     async {
                         DiagnosticsThreadStatics.DiagnosticsLogger <- diagnosticsLogger
                         DiagnosticsThreadStatics.BuildPhase <- phase
+                        Cancellable.Token <- ct
                         return! computation |> Async.AwaitNodeCode
                     }
 
@@ -139,6 +143,7 @@ type NodeCode private () =
             finally
                 DiagnosticsThreadStatics.DiagnosticsLogger <- diagnosticsLogger
                 DiagnosticsThreadStatics.BuildPhase <- phase
+                Cancellable.Token <- oldCt
         with :? AggregateException as ex when ex.InnerExceptions.Count = 1 ->
             raise (ex.InnerExceptions[0])
 
