@@ -499,6 +499,9 @@ type BackgroundCompiler
                         Activity.Tags.cache, cache.ToString()
                     |]
 
+            let! ct = Async.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             if cache then
                 let hash = sourceText.GetHashCode() |> int64
 
@@ -539,6 +542,9 @@ type BackgroundCompiler
                 Activity.start
                     "BackgroundCompiler.GetBackgroundParseResultsForFileInProject"
                     [| Activity.Tags.fileName, fileName; Activity.Tags.userOpName, userOpName |]
+
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
 
             let! builderOpt, creationDiags = getOrCreateBuilder (options, userOpName)
 
@@ -689,6 +695,9 @@ type BackgroundCompiler
                         Activity.Tags.userOpName, userOpName
                     |]
 
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             let! cachedResults =
                 node {
                     let! builderOpt, creationDiags = getAnyBuilder (options, userOpName)
@@ -731,6 +740,9 @@ type BackgroundCompiler
                         Activity.Tags.userOpName, userOpName
                     |]
 
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             let! builderOpt, creationDiags = getOrCreateBuilder (options, userOpName)
 
             match builderOpt with
@@ -758,6 +770,9 @@ type BackgroundCompiler
                         Activity.Tags.fileName, fileName
                         Activity.Tags.userOpName, userOpName
                     |]
+
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
 
             let! builderOpt, creationDiags = getOrCreateBuilder (options, userOpName)
 
@@ -832,6 +847,9 @@ type BackgroundCompiler
                         Activity.Tags.fileName, fileName
                         Activity.Tags.userOpName, userOpName
                     |]
+
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
 
             let! builderOpt, creationDiags = getOrCreateBuilder (options, userOpName)
 
@@ -973,6 +991,9 @@ type BackgroundCompiler
                         Activity.Tags.userOpName, userOpName
                     |]
 
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             let! builderOpt, _ = getOrCreateBuilder (options, userOpName)
 
             match builderOpt with
@@ -1015,6 +1036,9 @@ type BackgroundCompiler
     /// Parse and typecheck the whole project (the implementation, called recursively as project graph is evaluated)
     member private _.ParseAndCheckProjectImpl(options, userOpName) =
         node {
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             let! builderOpt, creationDiags = getOrCreateBuilder (options, userOpName)
 
             match builderOpt with
@@ -1089,6 +1113,9 @@ type BackgroundCompiler
                         Activity.Tags.userOpName, userOpName
                     |]
 
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             let! builderOpt, _ = getOrCreateBuilder (options, userOpName)
 
             match builderOpt with
@@ -1147,6 +1174,9 @@ type BackgroundCompiler
 
             // Do we assume .NET Framework references for scripts?
             let assumeDotNetFramework = defaultArg assumeDotNetFramework true
+
+            let! ct = Cancellable.token ()
+            use _ = Cancellable.UsingToken(ct)
 
             let extraFlags =
                 if previewEnabled then
@@ -1264,6 +1294,9 @@ type BackgroundCompiler
                 |]
 
         async {
+            let! ct = Async.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             let! ct = Async.CancellationToken
             // If there was a similar entry (as there normally will have been) then re-establish an empty builder .  This
             // is a somewhat arbitrary choice - it will have the effect of releasing memory associated with the previous
@@ -1512,6 +1545,9 @@ type FSharpChecker
         use _ = Activity.start "FSharpChecker.Compile" [| Activity.Tags.userOpName, _userOpName |]
 
         async {
+            let! ct = Async.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             let ctok = CompilationThreadToken()
             return CompileHelpers.compileFromArgs (ctok, argv, legacyReferenceResolver, None, None)
         }
@@ -1631,6 +1667,9 @@ type FSharpChecker
         let userOpName = defaultArg userOpName "Unknown"
 
         node {
+            let! ct = NodeCode.CancellationToken
+            use _ = Cancellable.UsingToken(ct)
+
             if fastCheck <> Some true || not captureIdentifiersWhenParsing then
                 return! backgroundCompiler.FindReferencesInFile(fileName, options, symbol, canInvalidateProject, userOpName)
             else

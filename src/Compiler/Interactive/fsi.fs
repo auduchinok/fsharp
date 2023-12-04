@@ -4105,6 +4105,7 @@ type FsiInteractionProcessor
             ?cancellationToken: CancellationToken
         ) =
         let cancellationToken = defaultArg cancellationToken CancellationToken.None
+        use _ = Cancellable.UsingToken(cancellationToken)
 
         if tokenizer.LexBuffer.IsPastEndOfStream then
             let stepStatus =
@@ -4233,6 +4234,7 @@ type FsiInteractionProcessor
 
     member _.EvalInteraction(ctok, sourceText, scriptFileName, diagnosticsLogger, ?cancellationToken) =
         let cancellationToken = defaultArg cancellationToken CancellationToken.None
+        use _ = Cancellable.UsingToken(cancellationToken)
         use _ = UseBuildPhase BuildPhase.Interactive
         use _ = UseDiagnosticsLogger diagnosticsLogger
         use _scope = SetCurrentUICultureForThread fsiOptions.FsiLCID
@@ -4909,6 +4911,7 @@ type FsiEvaluationSession
             SpawnInteractiveServer(fsi, fsiOptions, fsiConsoleOutput)
 
         use _ = UseBuildPhase BuildPhase.Interactive
+        use _ = Cancellable.UsingToken(CancellationToken.None)
 
         if fsiOptions.Interact then
             // page in the type check env
