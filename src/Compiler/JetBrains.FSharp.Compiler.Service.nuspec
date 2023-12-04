@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
     <metadata>
-        <version>2023.2.2</version>
+        <version>2023.3.2.0</version>
         <id>JetBrains.FSharp.Compiler.Service</id>
         <description>The F# compiler services package contains a custom build of the F# compiler that exposes additional functionality for implementing F# language bindings, additional tools based on the compiler or refactoring tools. The package also includes F# interactive service that can be used for embedding F# scripting into your applications.</description>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
@@ -11,8 +11,10 @@
         <summary>F# compiler services for creating IDE tools, language extensions and for F# embedding.</summary>
         <dependencies>
             <group targetFramework="netstandard2.0">
+                <dependency id="System.Diagnostics.DiagnosticSource" version="7.0.2" />
             </group>
         </dependencies>
+        <license type="expression">MIT</license>
     </metadata>
     <files>
         <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\FSharp.Compiler.Service.dll" target="lib\netstandard2.0" />
@@ -20,9 +22,6 @@
         <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\FSharp.DependencyManager.Nuget.dll" target="lib\netstandard2.0" />
         <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\FSharp.DependencyManager.Nuget.xml" target="lib\netstandard2.0" />
 
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\System.Diagnostics.DiagnosticSource.dll" target="lib\netstandard2.0" />
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Service\Release\netstandard2.0\System.Collections.Immutable.dll" target="lib\netstandard2.0" />
-
-        <file src="..\..\artifacts\bin\FSharp.Compiler.Interactive.Settings\Debug\netstandard2.0\FSharp.Compiler.Interactive.Settings.dll" target="lib\netstandard2.0" />
+        <file src="..\..\artifacts\bin\FSharp.Compiler.Interactive.Settings\Release\netstandard2.0\FSharp.Compiler.Interactive.Settings.dll" target="lib\netstandard2.0" />
     </files>
 </package>
