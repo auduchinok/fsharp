@@ -650,7 +650,7 @@ module IncrementalBuilderHelpers =
 #endif
         ) : NodeCode<BoundModel * SingleFileDiagnostics> =
 
-      cancellable {
+      node {
         let diagnosticsLogger = CompilationDiagnosticLogger("CombineImportedAssembliesTask", tcConfig.diagnosticsOptions)
         use _ = new CompilationGlobalsScope(diagnosticsLogger, BuildPhase.Parameter)
 
@@ -722,7 +722,7 @@ module IncrementalBuilderHelpers =
                 tcInfo,
                 None
             ), initialErrors
-      } |> NodeCode.FromCancellable
+      }
 
     /// Finish up the typechecking to produce outputs for the rest of the compilation process
     let FinalizeTypeCheckTask (tcConfig: TcConfig) tcGlobals partialCheck assemblyName outfile (initialErrors: SingleFileDiagnostics) (boundModels: GraphNode<BoundModel> seq) =
