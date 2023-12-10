@@ -57,51 +57,52 @@ let UnifyRefTupleType contextInfo (cenv: cenv) denv m ty ps =
     AddCxTypeEqualsType contextInfo denv cenv.css m ty (TType_tuple (tupInfoRef, ptys))
     ptys
 
-let rec TryAdjustHiddenVarNameToCompGenName cenv env (id: Ident) altNameRefCellOpt =
-    match altNameRefCellOpt with
-    | Some ({contents = SynSimplePatAlternativeIdInfo.Undecided altId } as altNameRefCell) ->
-        match ResolvePatternLongIdent cenv.tcSink cenv.nameResolver AllIdsOK false id.idRange env.eAccessRights env.eNameResEnv TypeNameResolutionInfo.Default [id] ExtraDotAfterIdentifier.No with
-        | Item.NewDef _ ->
-            // The name is not in scope as a pattern identifier (e.g. union case), so do not use the alternate ID
-            None
-        | _ ->
-            // The name is in scope as a pattern identifier, so use the alternate ID
-            altNameRefCell.Value <- SynSimplePatAlternativeIdInfo.Decided altId
-            Some altId
-    | Some {contents = SynSimplePatAlternativeIdInfo.Decided altId } -> Some altId
-    | None -> None
+// let rec TryAdjustHiddenVarNameToCompGenName cenv env (id: Ident) altNameRefCellOpt =
+//     match altNameRefCellOpt with
+//     | Some ({contents = SynSimplePatAlternativeIdInfo.Undecided altId } as altNameRefCell) ->
+//         match ResolvePatternLongIdent cenv.tcSink cenv.nameResolver AllIdsOK false id.idRange env.eAccessRights env.eNameResEnv TypeNameResolutionInfo.Default [id] ExtraDotAfterIdentifier.No with
+//         | Item.NewDef _ ->
+//             // The name is not in scope as a pattern identifier (e.g. union case), so do not use the alternate ID
+//             None
+//         | _ ->
+//             // The name is in scope as a pattern identifier, so use the alternate ID
+//             altNameRefCell.Value <- SynSimplePatAlternativeIdInfo.Decided altId
+//             Some altId
+//     | Some {contents = SynSimplePatAlternativeIdInfo.Decided altId } -> Some altId
+//     | None -> None
 
-/// Bind the patterns used in a lambda. Not clear why we don't use TcPat.
-and TcSimplePat optionalArgsOK checkConstraints (cenv: cenv) ty env patEnv p =
+let rec TcSimplePat optionalArgsOK checkConstraints (cenv: cenv) ty env patEnv (p: SynPat) =
     let g = cenv.g
     let (TcPatLinearEnv(tpenv, names, takenNames)) = patEnv
 
+    let tcIdent (id: Ident) isMemberThis =
+        let vFlags = TcPatValFlags (ValInline.Optional, permitInferTypars, noArgOrRetAttribs, false, None, false)
+        let _, names, takenNames = TcPatBindingName cenv env id ty isMemberThis None None vFlags (names, takenNames)
+        let patEnvR = TcPatLinearEnv(tpenv, names, takenNames)
+        id.idText, patEnvR
+
     match p with
-    | SynSimplePat.Id (id, altNameRefCellOpt, isCompGen, isMemberThis, isOpt, m) ->
+    | SynPat.Named(SynIdent(id, _), isMemberThis, _, _) -> tcIdent id isMemberThis
+    // | SynSimplePat.Id (id, altNameRefCellOpt, isCompGen, isMemberThis, isOpt, m) ->
 
         // Check to see if pattern translation decides to use an alternative identifier.
-        match TryAdjustHiddenVarNameToCompGenName cenv env id altNameRefCellOpt with
-        | Some altId ->
-            TcSimplePat optionalArgsOK checkConstraints cenv ty env patEnv (SynSimplePat.Id (altId, None, isCompGen, isMemberThis, isOpt, m) )
-        | None ->
-            if isOpt then
-                if not optionalArgsOK then
-                    errorR(Error(FSComp.SR.tcOptionalArgsOnlyOnMembers(), m))
+        // match TryAdjustHiddenVarNameToCompGenName cenv env id altNameRefCellOpt with
+        // | Some altId ->
+        //     TcSimplePat optionalArgsOK checkConstraints cenv ty env patEnv (SynSimplePat.Id (altId, None, isCompGen, isMemberThis, isOpt, m) )
+        // | None ->
 
-                let tyarg = NewInferenceType g
-                UnifyTypes cenv env m ty (mkOptionTy g tyarg)
+    | SynPat.OptionalVal(ident, m) ->
+        if not optionalArgsOK then
+            errorR(Error(FSComp.SR.tcOptionalArgsOnlyOnMembers(), m))
 
-            let vFlags = TcPatValFlags (ValInline.Optional, permitInferTypars, noArgOrRetAttribs, false, None, isCompGen)
-            let _, names, takenNames = TcPatBindingName cenv env id ty isMemberThis None None vFlags (names, takenNames)
-            let patEnvR = TcPatLinearEnv(tpenv, names, takenNames)
-            id.idText, patEnvR
+        tcIdent ident false
 
-    | SynSimplePat.Typed (p, cty, m) ->
+    | SynPat.Typed(p, cty, m) ->
         let ctyR, tpenv = TcTypeAndRecover cenv NewTyparsOK checkConstraints ItemOccurence.UseInType WarnOnIWSAM.Yes env tpenv cty
 
         match p with
         // Optional arguments on members
-        | SynSimplePat.Id(_, _, _, _, true, _) -> UnifyTypes cenv env m ty (mkOptionTy g ctyR)
+        | SynPat.OptionalVal _ -> UnifyTypes cenv env m ty (mkOptionTy g ctyR)
         | _ -> UnifyTypes cenv env m ty ctyR
 
         let patEnvR = TcPatLinearEnv(tpenv, names, takenNames)
@@ -113,40 +114,47 @@ and TcSimplePat optionalArgsOK checkConstraints (cenv: cenv) ty env patEnv p =
 
         TcSimplePat optionalArgsOK checkConstraints cenv ty env patEnvR p
 
-    | SynSimplePat.Attrib (p, _, _) ->
+    | SynPat.Attrib(pat = p) ->
         TcSimplePat optionalArgsOK checkConstraints cenv ty env patEnv p
 
-// raise an error if any optional args precede any non-optional args
-and ValidateOptArgOrder (synSimplePats: SynSimplePats) =
+    | _ -> failwith "todo"
 
-    let rec getPats synSimplePats =
-        match synSimplePats with
-        | SynSimplePats.SimplePats(p, _, m) -> p, m
-
-    let rec isOptArg pat =
+and getSimplePats (pat: SynPat) =
+    match pat with
+    | SynPat.Paren(pat, _) ->
         match pat with
-        | SynSimplePat.Id (_, _, _, _, isOpt, _) -> isOpt
-        | SynSimplePat.Typed (p, _, _) -> isOptArg p
-        | SynSimplePat.Attrib (p, _, _) -> isOptArg p
+        | SynPat.Tuple(false, pats, _, _) -> pats
+        | pat -> [pat]
+    | _ -> []
 
-    let pats, m = getPats synSimplePats
+// raise an error if any optional args precede any non-optional args
+and ValidateOptArgOrder (pat: SynPat) =
+
+    let rec isOptArg (pat: SynPat) =
+        match pat with
+        | SynPat.OptionalVal _ -> true
+        | SynPat.Typed(p, _, _) -> isOptArg p
+        | SynPat.Attrib(p, _, _) -> isOptArg p
+        | _ -> false
+
+    let pats = getSimplePats pat
 
     let mutable hitOptArg = false
 
-    List.iter (fun pat -> if isOptArg pat then hitOptArg <- true elif hitOptArg then error(Error(FSComp.SR.tcOptionalArgsMustComeAfterNonOptionalArgs(), m))) pats
+    List.iter (fun pat -> if isOptArg pat then hitOptArg <- true elif hitOptArg then error(Error(FSComp.SR.tcOptionalArgsMustComeAfterNonOptionalArgs(), pat.Range))) pats
 
 
-/// Bind the patterns used in argument position for a function, method or lambda.
-and TcSimplePats (cenv: cenv) optionalArgsOK checkConstraints ty env patEnv synSimplePats =
+/// Bind the patterns used in argument position for a primary constructor
+and TcSimplePats (cenv: cenv) optionalArgsOK checkConstraints ty env patEnv (pat: SynPat) =
 
     let g = cenv.g
     let (TcPatLinearEnv(tpenv, names, takenNames)) = patEnv
 
     // validate optional argument declaration
-    ValidateOptArgOrder synSimplePats
+    ValidateOptArgOrder pat
 
-    match synSimplePats with
-    | SynSimplePats.SimplePats ([],_, m) ->
+    match pat with
+    | SynPat.Const(SynConst.Unit, m) ->
         // Unit "()" patterns in argument position become SynSimplePats.SimplePats([], _) in the
         // syntactic translation when building bindings. This is done because the
         // use of "()" has special significance for arity analysis and argument counting.
@@ -162,20 +170,23 @@ and TcSimplePats (cenv: cenv) optionalArgsOK checkConstraints ty env patEnv synS
         let patEnvR = TcPatLinearEnv(tpenv, namesR, takenNamesR)
         [id.idText], patEnvR
 
-    | SynSimplePats.SimplePats (pats = [synSimplePat]) ->
+    | _ ->
+
+    match getSimplePats pat with
+    | [synSimplePat] ->
         let v, patEnv = TcSimplePat optionalArgsOK checkConstraints cenv ty env patEnv synSimplePat
         [v], patEnv
 
-    | SynSimplePats.SimplePats (ps, _, m) ->
-        let ptys = UnifyRefTupleType env.eContextInfo cenv env.DisplayEnv m ty ps
+    | ps ->
+        let ptys = UnifyRefTupleType env.eContextInfo cenv env.DisplayEnv pat.Range ty ps
         let ps', patEnvR = (patEnv, List.zip ptys ps) ||> List.mapFold (fun patEnv (ty, pat) -> TcSimplePat optionalArgsOK checkConstraints cenv ty env patEnv pat)
         ps', patEnvR
 
-and TcSimplePatsOfUnknownType (cenv: cenv) optionalArgsOK checkConstraints env tpenv synSimplePats =
+and TcSimplePatsOfUnknownType (cenv: cenv) optionalArgsOK checkConstraints env tpenv (pat: SynPat) =
     let g = cenv.g
     let argTy = NewInferenceType g
     let patEnv = TcPatLinearEnv (tpenv, NameMap.empty, Set.empty)
-    TcSimplePats cenv optionalArgsOK checkConstraints argTy env patEnv synSimplePats
+    TcSimplePats cenv optionalArgsOK checkConstraints argTy env patEnv pat
 
 and TcPatBindingName cenv env id ty isMemberThis vis1 valReprInfo (vFlags: TcPatValFlags) (names, takenNames: Set<string>) =
     let (TcPatValFlags(inlineFlag, declaredTypars, argAttribs, isMutable, vis2, isCompGen)) = vFlags

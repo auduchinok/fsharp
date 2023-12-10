@@ -15,7 +15,7 @@ val TcSimplePatsOfUnknownType:
     checkConstraints: CheckConstraints ->
     env: TcEnv ->
     tpenv: UnscopedTyparEnv ->
-    synSimplePats: SynSimplePats ->
+    pat: SynPat ->
         string list * TcPatLinearEnv
 
 // Check a pattern, e.g. for a binding or a match clause
@@ -38,5 +38,7 @@ val TcSimplePats:
     ty: TType ->
     env: TcEnv ->
     patEnv: TcPatLinearEnv ->
-    synSimplePats: SynSimplePats ->
+    pat: SynPat ->
         string list * TcPatLinearEnv
+
+val getSimplePats: SynPat -> SynPat list

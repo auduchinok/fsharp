@@ -123,7 +123,7 @@ let TcStaticImplicitCtorInfo_Phase2A(cenv: cenv, env, tcref: TyconRef, m, copyOf
 
 /// Check and elaborate the "left hand side" of the implicit class construction 
 /// syntax.
-let TcImplicitCtorInfo_Phase2A(cenv: cenv, env, tpenv, tcref: TyconRef, vis, attrs, spats, thisIdOpt, baseValOpt: Val option, safeInitInfo, m, copyOfTyconTypars, objTy, thisTy, xmlDoc: PreXmlDoc) =
+let TcImplicitCtorInfo_Phase2A(cenv: cenv, env, tpenv, tcref: TyconRef, vis, attrs, pat: SynPat, thisIdOpt, baseValOpt: Val option, safeInitInfo, m, copyOfTyconTypars, objTy, thisTy, xmlDoc: PreXmlDoc) =
 
     let g = cenv.g
     let baseValOpt = 
@@ -136,15 +136,17 @@ let TcImplicitCtorInfo_Phase2A(cenv: cenv, env, tpenv, tcref: TyconRef, vis, att
 
     // Type check arguments by processing them as 'simple' patterns 
     //     NOTE: if we allow richer patterns here this is where we'd process those patterns 
-    let ctorArgNames, patEnv = TcSimplePatsOfUnknownType cenv true CheckCxs env tpenv (SynSimplePats.SimplePats (spats, [], m))
+    let ctorArgNames, patEnv = TcSimplePatsOfUnknownType cenv true CheckCxs env tpenv pat
 
     let (TcPatLinearEnv(_, names, _)) = patEnv
         
     // Create the values with the given names 
     let _, vspecs = MakeAndPublishSimpleVals cenv env names
 
-    if tcref.IsStructOrEnumTycon && isNil spats then 
+    match tcref.IsStructOrEnumTycon, pat with
+    | true, SynPat.Const(SynConst.Unit, _) ->
         errorR (ParameterlessStructCtor(tcref.Range))
+    | _ -> ()
         
     // Put them in order 
     let ctorArgs = List.map (fun v -> NameMap.find v vspecs) ctorArgNames
@@ -161,9 +163,10 @@ let TcImplicitCtorInfo_Phase2A(cenv: cenv, env, tpenv, tcref: TyconRef, vis, att
         // NOTE: no attributes can currently be specified for the implicit constructor 
         let attribs = TcAttributes cenv env (AttributeTargets.Constructor ||| AttributeTargets.Method) attrs
         let memberFlags = CtorMemberFlags
-                                  
-        let synArgInfos = List.map (SynInfo.InferSynArgInfoFromSimplePat []) spats
-        let valSynData = SynValInfo([synArgInfos], SynInfo.unnamedRetVal)
+
+        let spats = getSimplePats pat
+        let synArgInfos = List.map SynInfo.InferSynArgInfoFromPat spats
+        let valSynData = SynValInfo(synArgInfos, SynInfo.unnamedRetVal)
         let id = ident ("new", m)
 
         CheckForNonAbstractInterface g ModuleOrMemberBinding tcref memberFlags false id.idRange
