@@ -2069,3 +2069,5 @@ type internal TransparentCompiler
                 userOpName: string
             ) : (FSharpParseFileResults * FSharpCheckFileResults * SourceTextHash) option =
             backgroundCompiler.TryGetRecentCheckResultsForFile(fileName, options, sourceText, userOpName)
+
+        member this.GetCachedScriptOptions _ = None

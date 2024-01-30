@@ -163,6 +163,8 @@ type internal IBackgroundCompiler =
         fileName: string * options: FSharpProjectOptions * sourceText: ISourceText option * userOpName: string ->
             (FSharpParseFileResults * FSharpCheckFileResults * SourceTextHash) option
 
+    abstract GetCachedScriptOptions: path: string -> FSharpProjectOptions option
+
     abstract member BeforeBackgroundFileCheck: IEvent<string * FSharpProjectOptions>
 
     abstract member FileChecked: IEvent<string * FSharpProjectOptions>
@@ -1678,3 +1680,6 @@ type internal BackgroundCompiler
                 userOpName: string
             ) : (FSharpParseFileResults * FSharpCheckFileResults * SourceTextHash) option =
             self.TryGetRecentCheckResultsForFile(fileName, options, sourceText, userOpName)
+
+        member _.GetCachedScriptOptions(path) =
+            incrementalBuildersCache.Keys(AnyCallerThread) |> List.tryFind (fun x -> x.ProjectFileName = path)
