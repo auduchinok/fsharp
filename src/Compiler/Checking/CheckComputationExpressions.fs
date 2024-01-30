@@ -3415,6 +3415,7 @@ let TcSequenceExpressionEntry (cenv: cenv) env (overallTy: OverallTy) tpenv (has
         | _ -> ()
 
         if not hasBuilder && not cenv.g.compilingFSharpCore then
+            CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, overallTy.Commit, env.eAccessRights)
             error (Error(FSComp.SR.tcInvalidSequenceExpressionSyntaxForm (), m))
 
         TcSequenceExpression cenv env tpenv comp overallTy m
