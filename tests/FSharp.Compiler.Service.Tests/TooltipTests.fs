@@ -13,7 +13,7 @@ open FSharp.Test
 open Xunit
 
 let testXmlDocFallbackToSigFileWhileInImplFile sigSource implSource (expectedContent: string) =
-    let implSource, lineText, pos, plid, names = getPartialIdentifierAndPrepareSource implSource
+    let implSource, lineText, pos, plid, names = prepareSourceAndGetPartialIdentifier implSource
 
     let files =
         Map.ofArray
@@ -264,7 +264,7 @@ let a = 23
 
 
 let testToolTipSquashing source =
-    let source, lineText, pos, plid, names = getPartialIdentifierAndPrepareSource source
+    let source, lineText, pos, plid, names = prepareSourceAndGetPartialIdentifier source
     let files =
         Map.ofArray
             [| "A.fs",
@@ -390,54 +390,55 @@ let taggedTextsToString (t: TaggedText array) =
     |> String.concat ""
 let assertAndExtractTooltip (ToolTipText(items)) =
     Assert.Equal(1,items.Length)
-    match items.[0] with
+    match items[0] with
     | ToolTipElement.Group [ singleElement ] ->
         let toolTipText =
             singleElement.MainDescription
             |> taggedTextsToString
         toolTipText, singleElement.XmlDoc, singleElement.Remarks |> Option.map taggedTextsToString
-    | _ -> failwith $"Expected group, got {items.[0]}"
+    | _ -> failwith $"Expected group, got {items[0]}"
     
 let assertAndGetSingleToolTipText items =
     let text,_xml,_remarks = assertAndExtractTooltip items
     text
 
-let normalize (s:string) = s.Replace("\r\n", "\n").Replace("\n\n", "\n")
+let normalize (s: string) = s.Replace("\r\n", "\n").Replace("\n\n", "\n")
+
+let getTooltip options source =
+    let source, lineText, pos, plid, names = prepareSourceAndGetPartialIdentifier source
+    let checkResults = getCheckResults source options
+    checkResults.GetToolTip(pos.Line, pos.Column, lineText, names, FSharpTokenTag.Identifier)
 
 [<Fact>]
 let ``Auto property should display a single tool tip`` () =
-    let source = """
+    getTooltip [||] """
 namespace Foo
 
 /// Some comment on class
 type Bar() =
     /// Some comment on class member
-    member val Foo = "bla" with get, set
+    member val Fo{caret}o = "bla" with get, set
 """
-    let checkResults = getCheckResults source Array.empty
-    checkResults.GetToolTip(7, 18, "    member val Foo = \"bla\" with get, set", [ "Foo" ], FSharpTokenTag.Identifier)
     |> assertAndGetSingleToolTipText
     |> Assert.shouldBeEquivalentTo "property Bar.Foo: string with get, set"
 
 [<FactForNETCOREAPP>]
 let ``Should display nullable Csharp code analysis annotations on method argument`` () =
-    
-    let source = """module Foo
-let exists() = System.IO.Path.Exists(null:string)
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
+let exists() = System.IO.Path.Exist{caret}s(null:string)
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(2, 36, "let exists() = System.IO.Path.Exists(null:string)", [ "Exists" ], FSharpTokenTag.Identifier)
     |> assertAndGetSingleToolTipText
     |> Assert.shouldBeEquivalentTo "System.IO.Path.Exists([<NotNullWhenAttribute (true)>] path: string | null) : bool"
     
 [<FactForNETCOREAPP>]
 let ``Should display xml doc on a nullable BLC method`` () =
-    
-    let source = """module Foo
-let exists() = System.IO.Path.Exists(null:string)
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
+let exists() = System.IO.Path.Exi{caret}sts(null:string)
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(2, 36, "let exists() = System.IO.Path.Exists(null:string)", [ "Exists" ], FSharpTokenTag.Identifier)
     |> assertAndExtractTooltip
     |> fun (text,xml,_remarks) ->
             text |> Assert.shouldBeEquivalentTo "System.IO.Path.Exists([<NotNullWhenAttribute (true)>] path: string | null) : bool"
@@ -448,15 +449,14 @@ let exists() = System.IO.Path.Exists(null:string)
             
 [<FactForNETCOREAPP>]
 let ``Should display xml doc on fsharp hosted nullable function`` () =
-    
-    let source = """module Foo
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
 /// This is a xml doc above myFunc
 let myFunc(x:string|null) : string | null = x
 
-let exists() = myFunc(null)
+let exists() = myFu{caret}nc(null)
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(5, 21, "let exists() = myFunc(null)", [ "myFunc" ], FSharpTokenTag.Identifier)
     |> assertAndExtractTooltip
     |> fun (text,xml,remarks) ->
             match xml with
@@ -469,78 +469,77 @@ let exists() = myFunc(null)
 
 [<FactForNETCOREAPP>]
 let ``Should display nullable Csharp code analysis annotations on method return type`` () =
-    
-    let source = """module Foo
-let getPath() = System.IO.Path.GetFileName(null:string)
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
+let getPath() = System.IO.Path.GetFile{caret}Name(null:string)
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(2, 42, "let getPath() = System.IO.Path.GetFileName(null:string)", [ "GetFileName" ], FSharpTokenTag.Identifier)   
     |> assertAndGetSingleToolTipText
     |> Assert.shouldBeEquivalentTo ("""[<return:NotNullIfNotNullAttribute ("path")>]
 System.IO.Path.GetFileName(path: string | null) : string | null""" |> normalize)
 
 [<FactForNETCOREAPP>]
 let ``Should display nullable Csharp code analysis annotations on TryParse pattern`` () =   
-    let source = """module Foo
-let success,version = System.Version.TryParse(null)
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
+let success,version = System.Version.TryPar{caret}se(null)
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(2, 45, "let success,version = System.Version.TryParse(null)", [ "TryParse" ], FSharpTokenTag.Identifier)   
     |> assertAndGetSingleToolTipText
-    |> Assert.shouldBeEquivalentTo ("""System.Version.TryParse([<NotNullWhenAttribute (true)>] input: string | null, [<NotNullWhenAttribute (true)>] result: byref<System.Version | null>) : bool""")
+    |> Assert.shouldBeEquivalentTo """System.Version.TryParse([<NotNullWhenAttribute (true)>] input: string | null, [<NotNullWhenAttribute (true)>] result: byref<System.Version | null>) : bool"""
 
 [<FactForNETCOREAPP>]
 let ``Display with nullable annotations can be squashed`` () =   
-    let source = """module Foo
-let success,version = System.Version.TryParse(null)
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
+let success,version = System.Version.Try{caret}Parse(null)
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(2, 45, "let success,version = System.Version.TryParse(null)", [ "TryParse" ], FSharpTokenTag.Identifier,width=100)   
     |> assertAndGetSingleToolTipText
     |> Assert.shouldBeEquivalentTo ("""System.Version.TryParse([<NotNullWhenAttribute (true)>] input: string | null,
                         [<NotNullWhenAttribute (true)>] result: byref<System.Version | null>) : bool""" |> normalize)
     
 [<FactForNETCOREAPP>]
 let ``Allows ref struct is shown on BCL interface declaration`` () =   
-    let source = """module Foo
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
 open System
-let myAction : Action<int> | null = null
+let myAction : Acti{caret}on<int> | null = null
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(3, 21, "let myAction : Action<int> | null = null", [ "Action" ], FSharpTokenTag.Identifier)   
     |> assertAndGetSingleToolTipText
     |> Assert.shouldStartWith ("""type Action<'T (allows ref struct)>""" |> normalize)
     
 [<FactForNETCOREAPP>]
 let ``Allows ref struct is shown for each T on BCL interface declaration`` () =   
-    let source = """module Foo
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
 open System
-let myAction : Action<int,_,_,_> | null = null
+let myAction : Acti{caret}on<int,_,_,_> | null = null
 """
-    let checkResults = getCheckResults source [|"--checknulls+";"--langversion:preview"|]
-    checkResults.GetToolTip(3, 21, "let myAction : Action<int,_,_,_> | null = null", [ "Action" ], FSharpTokenTag.Identifier)   
     |> assertAndGetSingleToolTipText
     |> Assert.shouldStartWith ("""type Action<'T1,'T2,'T3,'T4 (allows ref struct and allows ref struct and allows ref struct and allows ref struct)>""" |> normalize)
     
 [<FactForNETCOREAPP>]
 let ``Allows ref struct is shown on BCL method usage`` () =
-    let source = """module Foo
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
 open System
 open System.Collections.Generic
-let doIt (dict:Dictionary<'a,'b>) = dict.GetAlternateLookup<'a,'b,ReadOnlySpan<char>>()
+let doIt (dict:Dictionary<'a,'b>) = dict.GetAltern{caret}ateLookup<'a,'b,ReadOnlySpan<char>>()
 """
-    let checkResults = getCheckResults source [|"--langversion:preview"|]
-    checkResults.GetToolTip(4, 59, "let doIt (dict:Dictionary<'a,'b>) = dict.GetAlternateLookup<'a,'b,ReadOnlySpan<char>>()", [ "GetAlternateLookup" ], FSharpTokenTag.Identifier)   
     |> assertAndGetSingleToolTipText
     |> Assert.shouldContain ("""'TAlternateKey (allows ref struct)""" |> normalize)
     
 [<FactForNETCOREAPP>]
 let ``Allows ref struct is not shown on BCL interface usage`` () =   
-    let source = """module Foo
+    getTooltip [|"--checknulls+";"--langversion:preview"|] """
+module Foo
+
 open System
-let doIt(myAction : Action<int>) = myAction.Invoke(42)
+let doIt(myAction : Action<int>) = myAc{caret}tion.Invoke(42)
 """
-    let checkResults = getCheckResults source [|"--langversion:preview"|]
-    checkResults.GetToolTip(3, 43, "let doIt(myAction : Action<int>) = myAction.Invoke(42)", [ "myAction" ], FSharpTokenTag.Identifier)   
     |> assertAndGetSingleToolTipText
     |> Assert.shouldBeEquivalentTo ("""val myAction: Action<int>""" |> normalize)

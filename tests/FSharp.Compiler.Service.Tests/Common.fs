@@ -342,24 +342,6 @@ let rec allSymbolsInEntities compGen (entities: IList<FSharpEntity>) =
           yield! allSymbolsInEntities compGen entity.NestedEntities ]
 
 
-let getCursorPosAndPrepareSource (source: string) : string * string * pos =
-    let lines = source.Split([|"\r\n"; "\n"|], StringSplitOptions.None)
-    let line = lines |> Seq.findIndex _.Contains("{caret}")
-    let lineText = lines[line]
-    let column = lineText.IndexOf("{caret}")
-
-    let source = source.Replace("{caret}", "")
-    let lineText = lineText.Replace("{caret}", "")
-    source, lineText, Position.mkPos (line + 1) (column - 1)
-
-let getPartialIdentifierAndPrepareSource source =
-    let source, lineText, pos = getCursorPosAndPrepareSource source
-    let _, column, _ = QuickParse.GetCompleteIdentifierIsland false lineText pos.Column |> Option.get
-    let pos = Position.mkPos pos.Line column
-    let plid = QuickParse.GetPartialLongNameEx(lineText, column - 1)
-    let names = plid.QualifyingIdents @ [plid.PartialIdent]
-    source, lineText, pos, plid, names
-
 let getParseResults (source: string) =
     parseSourceCode("Test.fsx", source)
 
@@ -380,6 +362,30 @@ let getParseAndCheckResults50 (source: string) =
 
 let getParseAndCheckResults70 (source: string) =
     parseAndCheckScript70("Test.fsx", source)
+
+
+let prepareSourceAndGetCursorPos (source: string) : string * string * pos =
+    let lines = source.Split([|"\r\n"; "\n"|], StringSplitOptions.None)
+    let line = lines |> Seq.findIndex _.Contains("{caret}")
+    let lineText = lines[line]
+    let column = lineText.IndexOf("{caret}")
+
+    let source = source.Replace("{caret}", "")
+    let lineText = lineText.Replace("{caret}", "")
+    source, lineText, Position.mkPos (line + 1) (column - 1)
+
+let prepareSourceAndGetPartialIdentifier source =
+    let source, lineText, pos = prepareSourceAndGetCursorPos source
+    let _, column, _ = QuickParse.GetCompleteIdentifierIsland false lineText pos.Column |> Option.get
+    let pos = Position.mkPos pos.Line column
+    let plid = QuickParse.GetPartialLongNameEx(lineText, column - 1)
+    let names = plid.QualifyingIdents @ [plid.PartialIdent]
+    source, lineText, pos, plid, names
+
+let prepareSourceAndGetCheckResultsAndPartialIdentifier (source: string) =
+    let source, lineText, pos, plid, names = prepareSourceAndGetPartialIdentifier source
+    let _, checkResults = getParseAndCheckResults source
+    checkResults, lineText, pos, plid, names
 
 
 let inline dumpDiagnostics (results: FSharpCheckFileResults) =

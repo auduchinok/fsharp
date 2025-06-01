@@ -5,7 +5,7 @@ open FSharp.Compiler.EditorServices
 open Xunit
 
 let getCompletionInfo source =
-    let source, lineText, pos = getCursorPosAndPrepareSource source
+    let source, lineText, pos = prepareSourceAndGetCursorPos source
     let parseResults, checkResults = getParseAndCheckResultsPreview source
     let plid = QuickParse.GetPartialLongNameEx(lineText, pos.Column)
     checkResults.GetDeclarationListInfo(Some parseResults, pos.Line, lineText, plid)
