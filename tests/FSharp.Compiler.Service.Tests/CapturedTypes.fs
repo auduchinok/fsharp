@@ -34,3 +34,11 @@ let ``Expr - Tuple 01`` () =
 [<Fact>]
 let ``Expr - Tuple 02`` () =
     assertCapturedType "int * int" "if true then {selstart}1, 2{selend} else 1, true"
+
+[<Fact>]
+let ``Pat - Literal 01`` () =
+    assertCapturedType "int" "let {selstart}i{selend} = 1"
+
+[<Fact>]
+let ``Pat - Wild 01`` () =
+    assertCapturedType "int" "let {selstart}_{selend} = 1"
