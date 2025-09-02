@@ -631,7 +631,7 @@ val internal CallNameResolutionSinkReplacing:
 /// Report a specific name resolution at a source range
 val internal CallExprHasTypeSink: TcResultsSink -> range * NameResolutionEnv * TType * AccessorDomain -> unit
 
-/// Report type at range, but don't use it in features like code completion, only in TryGetExpressionType
+/// Report type at range, but don't use it in features like code completion, only in TryGetCapturedType
 val internal CallExprHasTypeSinkSynthetic: TcResultsSink -> range * NameResolutionEnv * TType * AccessorDomain -> unit
 
 /// Report an open declaration

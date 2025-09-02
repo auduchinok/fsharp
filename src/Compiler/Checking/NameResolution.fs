@@ -2193,7 +2193,6 @@ type TcResultsSinkImpl(tcGlobals, ?sourceText: ISourceText) =
             if allowedRange m then
                 capturedExprTypings.Add((ty, nenv, ad, m.MakeSynthetic()))
 
-
         member sink.NotifyNameResolution(endPos, item, tpinst, occurrenceType, nenv, ad, m, replace) =
             if allowedRange m then
                 if replace then
