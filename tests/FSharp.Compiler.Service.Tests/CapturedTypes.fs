@@ -17,6 +17,18 @@ let assertCapturedType expectedTypeString markedSource =
 
 module Expr =
     [<Fact>]
+    let ``Function 01`` () =
+        assertCapturedType "string -> int" "[\"\"] |> List.map ({selstart}function{selend} s -> s.Length)"
+
+    [<Fact>]
+    let ``Function 02`` () =
+        assertCapturedType "string -> int" "[\"\"] |> List.map ({selstart}function{selend})"
+
+    [<Fact>]
+    let ``Function 03`` () =
+        assertCapturedType "string -> int" "[\"\"] |> List.map {selstart}function{selend}"
+
+    [<Fact>]
     let ``If 01`` () =
         assertCapturedType "int * int" "{selstart}if true then 1, 2 else 1, true{selend}"
 
@@ -37,6 +49,10 @@ module Expr =
     [<Fact>]
     let ``Short lambda 01`` () =
         assertCapturedType "string" "[\"\"] |> List.map {selstart}_{selend}.Length"
+
+    [<Fact>]
+    let ``Short lambda 02`` () =
+        assertCapturedType "string -> int" "[\"\"] |> List.map {selstart}_.Length{selend}"
 
     [<Fact>]
     let ``Tuple 01`` () =
