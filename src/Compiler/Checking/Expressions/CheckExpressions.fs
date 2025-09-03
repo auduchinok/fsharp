@@ -5818,21 +5818,21 @@ and TcExprUndelayed (cenv: cenv) (overallTy: OverallTy) env tpenv (synExpr: SynE
         TcNonControlFlowExpr env <| fun env ->
         CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, overallTy.Commit, env.AccessRights)
         TcConstExpr cenv overallTy env m tpenv synConst
+
     | SynExpr.DotLambda (synExpr, m, trivia) ->
-        match env.NameEnv.eUnqualifiedItems |> Map.tryFind "_arg1" with
         // Compiler-generated _arg items can have more forms, the real underscore will be 1-character wide
-        | Some (Item.Value(valRef)) when valRef.Range.StartColumn+1 = valRef.Range.EndColumn ->
+        match env.NameEnv.eUnqualifiedItems |> Map.tryFind "_arg1" with
+        | Some (Item.Value(valRef)) when valRef.Range.StartColumn + 1 = valRef.Range.EndColumn ->
             warning(Error(FSComp.SR.tcAmbiguousDiscardDotLambda(), trivia.UnderscoreRange))
-        | Some _ -> ()
-        | None -> ()
+        | _ -> ()
 
         let unaryArg = mkSynId trivia.UnderscoreRange (cenv.synArgNameGenerator.New())
         let svar = mkSynCompGenSimplePatVar unaryArg
         let pushedExpr = pushUnaryArg synExpr unaryArg
-        let lambda = SynExpr.Lambda(false, false, SynSimplePats.SimplePats([ svar ],[], svar.Range), pushedExpr, None, m, SynExprLambdaTrivia.Zero)
+        let lambda = SynExpr.Lambda(false, false, SynSimplePats.SimplePats([ svar ], [], svar.Range), pushedExpr, None, m, SynExprLambdaTrivia.Zero)
         TcIteratedLambdas cenv true env overallTy Set.empty tpenv lambda
-    | SynExpr.Lambda(range = m) ->
-        CallExprHasTypeSinkSynthetic cenv.tcSink (m, env.NameEnv, overallTy.Commit, env.AccessRights)
+
+    | SynExpr.Lambda _ ->
         TcIteratedLambdas cenv true env overallTy Set.empty tpenv synExpr
 
     | SynExpr.Match (spMatch, synInputExpr, synClauses, _m, _trivia) ->
@@ -6104,9 +6104,10 @@ and TcExprMatch (cenv: cenv) overallTy env tpenv synInputExpr spMatch synClauses
 // is
 //     Lambda (_arg2, Let (x, _arg2, x))
 and TcExprMatchLambda (cenv: cenv) overallTy env tpenv (isExnMatch, mFunction, clauses, spMatch, m) =
-    let domainTy, resultTy = UnifyFunctionType None cenv env.DisplayEnv m overallTy.Commit
+    let domainTy, resultTy = UnifyFunctionType None cenv env.DisplayEnv m overallTy.Commit 
     let idv1, idve1 = mkCompGenLocal mFunction (cenv.synArgNameGenerator.New()) domainTy
     CallExprHasTypeSink cenv.tcSink (mFunction.StartRange, env.NameEnv, domainTy, env.AccessRights)
+    CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, overallTy.Commit, env.AccessRights)
     let envinner = ExitFamilyRegion env
     let envinner = { envinner with eIsControlFlow = true }
     let idv2, matchExpr, tpenv = TcAndPatternCompileMatchClauses m mFunction (if isExnMatch then Throw else ThrowIncompleteMatchException) cenv None domainTy (MustConvertTo (false, resultTy)) envinner tpenv clauses
@@ -6505,6 +6506,7 @@ and TcIteratedLambdas (cenv: cenv) isFirst (env: TcEnv) overallTy takenNames tpe
             | [] -> envinner
 
         let bodyExpr, tpenv = TcIteratedLambdas cenv false envinner (MustConvertTo (false, resultTy)) takenNames tpenv bodyExpr
+        CallExprHasTypeSink cenv.tcSink (m, env.NameEnv, overallTy.Commit, env.AccessRights)
 
         // See bug 5758: Non-monotonicity in inference: need to ensure that parameters are never inferred to have byref type, instead it is always declared
         byrefs |> Map.iter (fun _ (orig, v) ->

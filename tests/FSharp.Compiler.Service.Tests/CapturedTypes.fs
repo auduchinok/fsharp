@@ -18,15 +18,19 @@ let assertCapturedType expectedTypeString markedSource =
 module Expr =
     [<Fact>]
     let ``Function 01`` () =
-        assertCapturedType "string -> int" "[\"\"] |> List.map ({selstart}function{selend} s -> s.Length)"
+        assertCapturedType "string -> int" "[\"\"] |> List.map ({selstart}function s -> s.Length{selend})"
 
     [<Fact>]
     let ``Function 02`` () =
-        assertCapturedType "string -> int" "[\"\"] |> List.map ({selstart}function{selend})"
+        assertCapturedType "string" "[\"\"] |> List.map ({selstart}{selend}function s -> s.Length)"
 
     [<Fact>]
     let ``Function 03`` () =
-        assertCapturedType "string -> int" "[\"\"] |> List.map {selstart}function{selend}"
+        assertCapturedType "string" "[\"\"] |> List.map ({selstart}{selend}function)"
+
+    [<Fact(Skip="Implement parser recovery")>]
+    let ``Function 04`` () =
+        assertCapturedType "string" "[\"\"] |> List.map {selstart}{selend}function"
 
     [<Fact>]
     let ``If 01`` () =
