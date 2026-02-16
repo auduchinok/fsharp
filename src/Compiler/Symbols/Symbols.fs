@@ -2576,6 +2576,46 @@ type FSharpType(cenv, ty:TType) =
         | TType_tuple (tupInfo, _) -> evalTupInfoIsStruct tupInfo
         | _ -> false
 
+    member _.IsUnitType =
+        isResolved () &&
+        protect <| fun () -> isUnitTy cenv.g ty
+
+    member _.IsArrayType =
+        isResolved () &&
+        protect <| fun () -> isArrayTy cenv.g ty
+
+    member _.IsNativePointerType =
+        isResolved () &&
+        protect <| fun () -> isNativePtrTy cenv.g ty
+
+    member _.IsFSharpList =
+        isResolved () &&
+        protect <| fun () -> isListTy cenv.g ty
+
+    member _.IsFSharpChoice =
+        isResolved () &&
+        protect <| fun () -> isChoiceTy cenv.g ty
+
+    member _.IsFSharpOption =
+        isResolved () &&
+        protect <| fun () -> isOptionTy cenv.g ty
+
+    member _.IsFSharpValueOption =
+        isResolved () &&
+        protect <| fun () -> isValueOptionTy cenv.g ty
+
+    member _.IsStringType =
+        isResolved () &&
+        protect <| fun () -> isStringTy cenv.g ty
+
+    member _.IsObjectType =
+        isResolved () &&
+        protect <| fun () -> isObjTyAnyNullness cenv.g ty
+
+    member _.IsBooleanType =
+        isResolved () &&
+        protect <| fun () -> isBoolTy cenv.g ty
+
     member _.TypeDefinition = 
        protect <| fun () -> 
         match stripTyparEqns ty with 
