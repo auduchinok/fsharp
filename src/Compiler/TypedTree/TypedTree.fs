@@ -243,7 +243,12 @@ type ValFlags(flags: int64) =
         // Clear the IsCompiledAsStaticPropertyWithoutField, only used to determine whether to use a true field for a value, and to eliminate the optimization info for observable bindings
         // Clear the HasBeenReferenced, only used to report "unreferenced variable" warnings and to help collect 'it' values in FSI.EXE
         // Clear the IsGeneratedEventVal, since there's no use in propagating specialname information for generated add/remove event vals
-                                                      (flags       &&&   ~~~0b010011001100000000000L) 
+        let bits =                                    (flags       &&&   ~~~0b010011001100000000000L)
+        // Pickle ValInline.InlinedDefinition as ValInline.Always.
+        if bits &&& 0b00000000000000110000L = 0L then
+            bits ||| 0b00000000000000010000L
+        else
+            bits
 
 /// Represents the kind of a type parameter
 [<RequireQualifiedAccess (* ; StructuredFormatDisplay("{DebugText}") *) >]
