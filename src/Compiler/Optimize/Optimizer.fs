@@ -3100,7 +3100,7 @@ and TryOptimizeVal cenv env (vOpt: ValRef option, shouldInline, inlineIfLambda, 
 
     | CurriedLambdaValue (_, _, _, expr, _) when
             shouldInline && (cenv.settings.inlineNamedFunctions || Option.exists (shouldForceInlineInDebug cenv.g) vOpt) ||
-            inlineIfLambda ->
+            inlineIfLambda && cenv.settings.inlineNamedFunctions ->
         let fvs = freeInExpr CollectLocals expr
         if fvs.UsesMethodLocalConstructs then
             // Discarding lambda for binding because uses protected members --- TBD: Should we warn or error here
@@ -3112,9 +3112,8 @@ and TryOptimizeVal cenv env (vOpt: ValRef option, shouldInline, inlineIfLambda, 
     | TupleValue _ | UnionCaseValue _ | RecdValue _ when shouldInline ->
         failwith "tuple, union and record values cannot be marked 'inline'"
 
-    | UnknownValue when shouldInline ->
-        if cenv.settings.inlineNamedFunctions then
-            warning(Error(FSComp.SR.optValueMarkedInlineHasUnexpectedValue(), m))
+    | UnknownValue when shouldInline && cenv.settings.inlineNamedFunctions ->
+        warning(Error(FSComp.SR.optValueMarkedInlineHasUnexpectedValue(), m))
         None
 
     | _ when shouldInline && cenv.settings.inlineNamedFunctions ->
@@ -3163,12 +3162,14 @@ and OptimizeVal cenv env expr (v: ValRef, m) =
            e, AddValEqualityInfo g m v einfo 
 
     | None ->
-       if v.ShouldInline && cenv.settings.inlineNamedFunctions then
-            match valInfoForVal.ValExprInfo with
-            | UnknownValue -> error(Error(FSComp.SR.optFailedToInlineValue(v.DisplayName), m))
-            | _ -> warning(Error(FSComp.SR.optFailedToInlineValue(v.DisplayName), m))
-       if v.InlineIfLambda then 
-           warning(Error(FSComp.SR.optFailedToInlineSuggestedValue(v.DisplayName), m))
+       if cenv.settings.inlineNamedFunctions then
+           if v.ShouldInline then
+                match valInfoForVal.ValExprInfo with
+                | UnknownValue -> error(Error(FSComp.SR.optFailedToInlineValue(v.DisplayName), m))
+                | _ -> warning(Error(FSComp.SR.optFailedToInlineValue(v.DisplayName), m))
+
+           if v.InlineIfLambda then
+               warning(Error(FSComp.SR.optFailedToInlineSuggestedValue(v.DisplayName), m))
 
        expr, (AddValEqualityInfo g m v 
                     { Info=valInfoForVal.ValExprInfo 
