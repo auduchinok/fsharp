@@ -13,13 +13,13 @@ Module::f
     IL_0001:  ldnull
     IL_0002:  ldc.i4.0
     IL_0003:  ldc.i4.0
-    IL_0004:  newobj .ctor
+    IL_0004:  newobj f@5::.ctor
     IL_0009:  ret
 
 f@5::GenerateNext
   <hidden>
     IL_0000:  ldarg.0
-    IL_0001:  ldfld pc
+    IL_0001:  ldfld f@5::pc
     IL_0006:  ldc.i4.1
     IL_0007:  sub
     IL_0008:  switch (3 targets)
@@ -44,15 +44,15 @@ f@5::GenerateNext
   (5,9-5,12)  for
     IL_0027:  ldarg.0
     IL_0028:  ldarg.0
-    IL_0029:  ldfld l
+    IL_0029:  ldfld f@5::l
     IL_002e:  callvirt GetEnumerator
-    IL_0033:  stfld enum
+    IL_0033:  stfld f@5::enum
     IL_0038:  ldarg.0
     IL_0039:  ldc.i4.1
-    IL_003a:  stfld pc
+    IL_003a:  stfld f@5::pc
     IL_003f:  br.s IL_006b
     IL_0041:  ldarg.0
-    IL_0042:  ldfld enum
+    IL_0042:  ldfld f@5::enum
     IL_0047:  callvirt get_Current
     IL_004c:  stloc.0
     IL_004d:  ldloc.0
@@ -65,41 +65,41 @@ f@5::GenerateNext
   (6,13-6,20)  yield i
     IL_005b:  ldarg.0
     IL_005c:  ldc.i4.2
-    IL_005d:  stfld pc
+    IL_005d:  stfld f@5::pc
     IL_0062:  ldarg.0
     IL_0063:  ldloc.2
-    IL_0064:  stfld current
+    IL_0064:  stfld f@5::current
     IL_0069:  ldc.i4.1
     IL_006a:  ret
 
   (5,19-5,21)  in
     IL_006b:  ldarg.0
-    IL_006c:  ldfld enum
-    IL_0071:  callvirt MoveNext
+    IL_006c:  ldfld f@5::enum
+    IL_0071:  callvirt IEnumerator::MoveNext
     IL_0076:  brtrue.s IL_0041
     IL_0078:  ldarg.0
     IL_0079:  ldc.i4.3
-    IL_007a:  stfld pc
+    IL_007a:  stfld f@5::pc
     IL_007f:  ldarg.0
-    IL_0080:  ldfld enum
-    IL_0085:  call Dispose
+    IL_0080:  ldfld f@5::enum
+    IL_0085:  call IntrinsicFunctions::Dispose
     IL_008a:  nop
     IL_008b:  ldarg.0
     IL_008c:  ldnull
-    IL_008d:  stfld enum
+    IL_008d:  stfld f@5::enum
     IL_0092:  ldarg.0
     IL_0093:  ldc.i4.3
-    IL_0094:  stfld pc
+    IL_0094:  stfld f@5::pc
     IL_0099:  ldarg.0
     IL_009a:  ldc.i4.0
-    IL_009b:  stfld current
+    IL_009b:  stfld f@5::current
     IL_00a0:  ldc.i4.0
     IL_00a1:  ret
 
 f@5::Close
   <hidden>
     IL_0000:  ldarg.0
-    IL_0001:  ldfld pc
+    IL_0001:  ldfld f@5::pc
     IL_0006:  ldc.i4.3
     IL_0007:  sub
     IL_0008:  switch (1 targets)
@@ -114,7 +114,7 @@ f@5::Close
 
   <hidden>
     IL_0017:  ldarg.0
-    IL_0018:  ldfld pc
+    IL_0018:  ldfld f@5::pc
     IL_001d:  switch (4 targets)
     IL_0032:  br.s IL_0040
 
@@ -142,20 +142,20 @@ f@5::Close
     IL_0043:  nop
     IL_0044:  ldarg.0
     IL_0045:  ldc.i4.3
-    IL_0046:  stfld pc
+    IL_0046:  stfld f@5::pc
     IL_004b:  ldarg.0
-    IL_004c:  ldfld enum
-    IL_0051:  call Dispose
+    IL_004c:  ldfld f@5::enum
+    IL_0051:  call IntrinsicFunctions::Dispose
     IL_0056:  nop
 
   <hidden>
     IL_0057:  nop
     IL_0058:  ldarg.0
     IL_0059:  ldc.i4.3
-    IL_005a:  stfld pc
+    IL_005a:  stfld f@5::pc
     IL_005f:  ldarg.0
     IL_0060:  ldc.i4.0
-    IL_0061:  stfld current
+    IL_0061:  stfld f@5::current
     IL_0066:  leave.s IL_0072
     IL_0068:  castclass Exception
     IL_006d:  stloc.1
@@ -183,7 +183,7 @@ f@5::Close
 f@5::get_CheckClose
   <hidden>
     IL_0000:  ldarg.0
-    IL_0001:  ldfld pc
+    IL_0001:  ldfld f@5::pc
     IL_0006:  switch (4 targets)
     IL_001b:  br.s IL_0029
 

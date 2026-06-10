@@ -29,7 +29,7 @@ Module::f
 
   (5,15-5,17)  in
     IL_001e:  ldloc.1
-    IL_001f:  callvirt MoveNext
+    IL_001f:  callvirt IEnumerator::MoveNext
     IL_0024:  brtrue.s IL_000a
     IL_0026:  ldnull
     IL_0027:  stloc.2
@@ -44,7 +44,7 @@ Module::f
 
   <hidden>
     IL_0036:  ldloc.s 5
-    IL_0038:  callvirt Dispose
+    IL_0038:  callvirt IDisposable::Dispose
     IL_003d:  endfinally
 
   <hidden>
