@@ -897,7 +897,7 @@ stages:
           commit: 6ddc28d46f81447eacb241b96e16ce693b210c96
           buildScript: dotnet build Prime.sln --configuration Release
           displayName: Prime_Build
-        - repo: bryanedds/Nu
-          commit: b321cb41a0bea0dab6b4509f895e6cd4d024e9e5
+        - repo: auduchinok/Nu
+          commit: ded25c3f0bc87b113c293f3de09c7b50d1eae74f
           buildScript: dotnet build Nu.sln --configuration Release
           displayName: Nu_Build
