@@ -30,7 +30,8 @@ open System.Runtime.InteropServices
 
 module rec Compiler =
     let shouldUpdateBaselines =
-        Environment.GetEnvironmentVariable("TEST_UPDATE_BSL") <> null
+        Environment.GetEnvironmentVariable("TEST_UPDATE_BSL") <> null ||
+        true
 
     let private baselineFailureMessage (expectedFile: string) (outFile: string) (diff: string) =
         $"""Baseline mismatch for {expectedFile}
