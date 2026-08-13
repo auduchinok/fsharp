@@ -21,6 +21,10 @@ let main args =
     | [| "retain-project"; responseFile; projectDir |] ->
         RetainProjectProbe.run responseFile projectDir
         0
+    // Same, but holds the analysis rooted so an external heap snapshot can be taken; see RetainProjectProbe.
+    | [| "retain-project"; responseFile; projectDir; "hold" |] ->
+        RetainProjectProbe.runCore responseFile projectDir true
+        0
     // Single-file check then hold alive for an external heap dump; see CheckFileProbe.
     | [| "check-file"; responseFile; projectDir; fileToCheck |] ->
         CheckFileProbe.run responseFile projectDir fileToCheck
