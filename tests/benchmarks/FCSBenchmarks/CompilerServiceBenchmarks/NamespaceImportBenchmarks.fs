@@ -226,7 +226,9 @@ module CompileProjectProbe =
 /// Retained memory for a real project: keeps ParseAndCheckProject's results alive so the imported
 /// structures stay on the heap, as an IDE holding a project's analysis does.
 ///
-/// Run from Program.fs: `retain-project <response-file> <project-dir>`.
+/// Run from Program.fs: `retain-project <response-file> <project-dir> [hold]`. With `hold` it prints its
+/// PID and sleeps with everything rooted, so `dotnet gcdump collect -p <pid>` can attribute the retained
+/// heap per type.
 module RetainProjectProbe =
 
     let private forceGC () =
@@ -234,7 +236,7 @@ module RetainProjectProbe =
         GC.WaitForPendingFinalizers()
         GC.Collect(2, GCCollectionMode.Forced, blocking = true)
 
-    let run (responseFile: string) (projectDir: string) =
+    let runCore (responseFile: string) (projectDir: string) (hold: bool) =
         Environment.CurrentDirectory <- projectDir
         let lines =
             File.ReadAllLines responseFile
@@ -243,12 +245,20 @@ module RetainProjectProbe =
         let sources =
             lines
             |> Array.filter (fun l -> (l.EndsWith ".fs" || l.EndsWith ".fsi") && not (l.StartsWith "-"))
+        // `-o:` is kept: it names the output assembly, and InternalsVisibleTo is matched against that
+        // name, so dropping it leaves a test project unable to see the internals it is testing. Nothing is
+        // written to it - ParseAndCheckProject only checks.
         let otherOptions =
-            lines |> Array.filter (fun l ->
-                l <> "fsc.dll" && not (l.StartsWith "-o:") && not (Array.contains l sources))
+            lines |> Array.filter (fun l -> l <> "fsc.dll" && not (Array.contains l sources))
+
+        // Only an identity for the checker, but naming it after the project keeps output readable when
+        // several projects are measured in one sweep.
+        let projectName =
+            let dir = Path.GetFileName(projectDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            if String.IsNullOrEmpty dir then "project" else dir
 
         let options: FSharpProjectOptions =
-            { ProjectFileName = Path.Combine(projectDir, "FSharp.Common.fsproj")
+            { ProjectFileName = Path.Combine(projectDir, projectName + ".fsproj")
               ProjectId = None
               SourceFiles = sources
               OtherOptions = otherOptions
@@ -269,15 +279,42 @@ module RetainProjectProbe =
         let checker = FSharpChecker.Create(projectCacheSize = 0)
         forceGC ()
         let baseHeap = GC.GetTotalMemory true
+        // Wall time of the check itself. This is a cold process, so it includes JIT and reading the
+        // references - which is the point: it is the same work an IDE does when opening a project.
+        // Total allocation, not just what survives: a change that stops building throwaway objects shows
+        // up here and nowhere else.
+        let allocatedBefore = GC.GetTotalAllocatedBytes true
+        let sw = System.Diagnostics.Stopwatch.StartNew()
         let results = checker.ParseAndCheckProject(options) |> Async.RunSynchronously
-        let errs = results.Diagnostics |> Array.filter (fun d -> d.Severity = FSharpDiagnosticSeverity.Error) |> Array.length
+        sw.Stop()
+        let allocated = GC.GetTotalAllocatedBytes true - allocatedBefore
+        let errors = results.Diagnostics |> Array.filter (fun d -> d.Severity = FSharpDiagnosticSeverity.Error)
+        let errs = errors.Length
+        // A project that does not check clean imports a different amount, so the errors have to be
+        // visible rather than just counted.
+        for e in Array.truncate 5 errors do
+            eprintfn "  error %s: %s (%s)" e.ErrorNumberText e.Message (Path.GetFileName e.FileName)
         forceGC ()
         let held = GC.GetTotalMemory true
+        printfn "analysis holds %7.1f MB (base %6.1f -> held %6.1f) in %7.0f ms | %d errors"
+            (mb (held - baseHeap)) (mb baseHeap) (mb held) sw.Elapsed.TotalMilliseconds errs
+        // Machine-readable, for averaging several runs across branches.
+        printfn "RETAINED_MB %.3f" (mb (held - baseHeap))
+        printfn "ELAPSED_MS %.0f" sw.Elapsed.TotalMilliseconds
+        printfn "ALLOCATED_MB %.1f" (mb allocated)
+
+        if hold then
+            printfn "PID %d" (System.Diagnostics.Process.GetCurrentProcess().Id)
+            printfn "READY_FOR_DUMP"
+            Console.Out.Flush()
+            // Hold everything rooted while the external snapshot is collected.
+            System.Threading.Thread.Sleep(240000)
+
         // Keep the imported structures alive across the measurement.
         GC.KeepAlive results
         GC.KeepAlive checker
-        printfn "analysis holds %7.1f MB (base %6.1f -> held %6.1f) | %d errors"
-            (mb (held - baseHeap)) (mb baseHeap) (mb held) errs
+
+    let run (responseFile: string) (projectDir: string) = runCore responseFile projectDir false
 
 /// Single-file check in a real project - the IDE hot path - holding the analysis alive so an external heap
 /// dump can attribute retained memory per type.
