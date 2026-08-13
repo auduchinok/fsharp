@@ -4250,7 +4250,7 @@ let openMetadataReader
                 let firstStreamLength = seekReadInt32 mdv (streamHeadersStart + 4)
                 firstStreamOffset, firstStreamLength
 
-    let stringsStreamPhysicalLoc, stringsStreamSize =
+    let stringsStreamPhysicalLoc, _stringsStreamSize =
         findStream [| 0x23; 0x53; 0x74; 0x72; 0x69; 0x6e; 0x67; 0x73 |] (* #Strings *)
 
     let userStringsStreamPhysicalLoc, userStringsStreamSize =
@@ -4527,8 +4527,13 @@ let openMetadataReader
     let cacheUserStringHeap =
         mkCacheGeneric reduceMemoryUsage inbase "UserStringHeap" (userStringsStreamSize / 20 + 1)
     // nb. Lots and lots of cache hits on this cache, hence never optimize cache away
-    let cacheStringHeap =
-        mkCacheGeneric false inbase "string heap" (stringsStreamSize / 50 + 1)
+    // Sized to grow rather than from the stream length: only a small fraction of a #Strings heap is ever
+    // read, so sizing from it left the table around 11% full, one nearly-empty table per reference.
+    let cacheStringHeap = mkCacheGeneric false inbase "string heap" 0
+
+    // Interning the namespaced type names is what keeps within-assembly duplicates out of the heap; it was
+    // only the fixed 1000-entry capacity of Tables.memoize that cost more than it saved.
+    let cacheMemoizeString = mkCacheGeneric false inbase "memoizeString" 0
 
     let cacheBlobHeap =
         mkCacheGeneric reduceMemoryUsage inbase "blob heap" (blobsStreamSize / 50 + 1)
@@ -4572,7 +4577,7 @@ let openMetadataReader
             stringsStreamPhysicalLoc = stringsStreamPhysicalLoc
             blobsStreamPhysicalLoc = blobsStreamPhysicalLoc
             blobsStreamSize = blobsStreamSize
-            memoizeString = Tables.memoize id
+            memoizeString = cacheMemoizeString id
             readUserStringHeap = cacheUserStringHeap (readUserStringHeapUncached ctxtH)
             readStringHeap = cacheStringHeap (readStringHeapUncached ctxtH)
             readBlobHeap = cacheBlobHeap (readBlobHeapUncached ctxtH)
