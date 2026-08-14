@@ -1109,7 +1109,6 @@ type ILMetadataReader =
         blobsStreamPhysicalLoc: int32
         blobsStreamSize: int32
         readUserStringHeap: int32 -> string
-        memoizeString: string -> string
         readStringHeap: int32 -> string
         readBlobHeap: int32 -> byte[]
         guidsStreamPhysicalLoc: int32
@@ -2082,7 +2081,7 @@ and readBlobHeapAsTypeName ctxt (nameIdx, namespaceIdx) =
 
     match nspace with
     | None -> name
-    | Some ns -> ctxt.memoizeString (ns + "." + name)
+    | Some ns -> ns + "." + name
 
 and seekReadTypeDefRowExtents (ctxt: ILMetadataReader) _info (idx: int) =
     if idx >= ctxt.getNumRows TableNames.TypeDef then
@@ -4531,10 +4530,6 @@ let openMetadataReader
     // read, so sizing from it left the table around 11% full, one nearly-empty table per reference.
     let cacheStringHeap = mkCacheGeneric false inbase "string heap" 0
 
-    // Interning the namespaced type names is what keeps within-assembly duplicates out of the heap; it was
-    // only the fixed 1000-entry capacity of Tables.memoize that cost more than it saved.
-    let cacheMemoizeString = mkCacheGeneric false inbase "memoizeString" 0
-
     let cacheBlobHeap =
         mkCacheGeneric reduceMemoryUsage inbase "blob heap" (blobsStreamSize / 50 + 1)
 
@@ -4577,7 +4572,6 @@ let openMetadataReader
             stringsStreamPhysicalLoc = stringsStreamPhysicalLoc
             blobsStreamPhysicalLoc = blobsStreamPhysicalLoc
             blobsStreamSize = blobsStreamSize
-            memoizeString = cacheMemoizeString id
             readUserStringHeap = cacheUserStringHeap (readUserStringHeapUncached ctxtH)
             readStringHeap = cacheStringHeap (readStringHeapUncached ctxtH)
             readBlobHeap = cacheBlobHeap (readBlobHeapUncached ctxtH)
