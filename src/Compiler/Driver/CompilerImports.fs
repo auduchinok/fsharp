@@ -1246,6 +1246,9 @@ and [<Sealed>] TcImports
     let mutable disposed = false // this doesn't need locking, it's only for debugging
     let mutable tcGlobals = None // this doesn't need locking, it's set during construction of the TcImports
 
+    // Shared by every GetImportMap caller; races only duplicate the map, which is harmless
+    let mutable importMap: ImportMap option = None
+
     let CheckDisposed () =
         if disposed then
             assert false
@@ -1684,6 +1687,18 @@ and [<Sealed>] TcImports
     member tcImports.GetImportMap() =
         CheckDisposed()
 
+        // One per TcImports rather than one per call. The map holds no per-caller state - just the globals,
+        // a loader that only forwards back here, and a ConcurrentDictionary caching ILTypeRef lookups - and
+        // a fresh one per call meant that cache started empty every time. Built on demand because
+        // GetTcGlobals is not answerable until mscorlib and FSharp.Core have been established.
+        match importMap with
+        | Some map -> map
+        | None ->
+            let map = tcImports.MakeImportMap()
+            importMap <- Some map
+            map
+
+    member private tcImports.MakeImportMap() =
         let loaderInterface =
 #if NO_TYPEPROVIDERS
             { new AssemblyLoader with
