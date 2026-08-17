@@ -2638,6 +2638,15 @@ type ShouldNotifySink =
     | Yes
     | No
 
+/// The sink's rule, `ItemsAreEffectivelyEqual`, compares `fullDisplayTextOfModRef`. This compares the same
+/// path and name without building those strings.
+let private modRefsAreEffectivelyEqual (r1: ModuleOrNamespaceRef) (r2: ModuleOrNamespaceRef) =
+    let sameName (name1, kind1) (name2, kind2) =
+        CompilationPath.DemangleEntityName name1 kind1 = CompilationPath.DemangleEntityName name2 kind2
+
+    r1.DemangledModuleOrNamespaceName = r2.DemangledModuleOrNamespaceName
+    && List.lengthsEqAndForall2 sameName r1.CompilationPath.AccessPath r2.CompilationPath.AccessPath
+
 /// Perform name resolution for an identifier which must resolve to be a module or namespace.
 let rec ResolveLongIdentAsModuleOrNamespace sink (amap: Import.ImportMap) m first fullyQualified (nenv: NameResolutionEnv) ad (id:Ident) (rest: Ident list) isOpenDecl notifySink =
     if first && id.idText = MangledGlobalName then
@@ -2678,10 +2687,32 @@ let rec ResolveLongIdentAsModuleOrNamespace sink (amap: Import.ImportMap) m firs
                 namespaceNotFoundErrorCache <- Some(id.idRange, error)
                 error
 
+        // A namespace is usually declared by many of the referenced assemblies - 307 of 489 declare `System` -
+        // and the sink kept only the first report of each. Collect and report just those. Two different
+        // namespaces sharing an identifier stay two. Null when nothing is listening.
+        let firstOfEachNamespace =
+            if sink.CurrentSink.IsSome then ResizeArray<range * ModuleOrNamespaceRef>() else null
+
         let notifyNameResolution (modref: ModuleOrNamespaceRef) m =
-            let item = Item.ModuleOrNamespaces [modref]
-            let occurrence = if isOpenDecl then ItemOccurrence.Open else ItemOccurrence.Use
-            CallNameResolutionSink sink (m, nenv, item, emptyTyparInst, occurrence, ad)
+            if not (isNull firstOfEachNamespace) then
+                // One or two namespaces per identifier in practice, so a scan beats a keyed lookup.
+                let mutable seen = false
+                let mutable i = 0
+
+                while not seen && i < firstOfEachNamespace.Count do
+                    let reportedRange, reported = firstOfEachNamespace[i]
+                    seen <- equals reportedRange m && modRefsAreEffectivelyEqual reported modref
+                    i <- i + 1
+
+                if not seen then
+                    firstOfEachNamespace.Add(m, modref)
+
+        let flushNotifications () =
+            if not (isNull firstOfEachNamespace) then
+                let occurrence = if isOpenDecl then ItemOccurrence.Open else ItemOccurrence.Use
+
+                for m, modref in firstOfEachNamespace do
+                    CallNameResolutionSink sink (m, nenv, Item.ModuleOrNamespaces [modref], emptyTyparInst, occurrence, ad)
 
         match moduleOrNamespaces.TryGetValue id.idText with
         | true, modrefs when not modrefs.IsEmpty -> 
@@ -2703,15 +2734,19 @@ let rec ResolveLongIdentAsModuleOrNamespace sink (amap: Import.ImportMap) m firs
                             namespaceNotFound modref mty id depth
                     | _ -> namespaceNotFound modref mty id depth
                     
-            modrefs
-            |> List.map (fun modref ->
-                if IsEntityAccessible amap m ad modref then
-                    if notifySink = ShouldNotifySink.Yes then
-                        notifyNameResolution modref id.idRange
-                    look 1 modref rest
-                else
-                    raze (namespaceOrModuleNotFound.Force()))
-            |> List.reduce AddResults
+            let result =
+                modrefs
+                |> List.map (fun modref ->
+                    if IsEntityAccessible amap m ad modref then
+                        if notifySink = ShouldNotifySink.Yes then
+                            notifyNameResolution modref id.idRange
+                        look 1 modref rest
+                    else
+                        raze (namespaceOrModuleNotFound.Force()))
+                |> List.reduce AddResults
+
+            flushNotifications ()
+            result
         | _ -> raze (namespaceOrModuleNotFound.Force())
 
 // Note - 'rest' is annotated due to a bug currently in Unity (see: https://github.com/dotnet/fsharp/pull/7427)

@@ -1785,3 +1785,97 @@ let r2 = {| ...r1; C = 3 |}
                 |> Array.find (fun u -> not u.IsFromDefinition)
             if getRangeCoords su.Range <> getRangeCoords spreadUse.Range then
                 failwith $"GetSymbolUseAtLocation range %A{getRangeCoords su.Range} should match GetUsesOfSymbolInFile range %A{getRangeCoords spreadUse.Range} (no leading '...')."
+
+/// What an `open` reports to the name-resolution sink: fragments of one namespace as one record, two
+/// namespaces sharing an identifier as two.
+module OpenDeclarationSymbolUses =
+    open System.IO
+    open FSharp.Compiler.IO
+    open TestFramework
+
+    /// Not deduplicated: how many records survive is the point. Takes the uses already materialised, since
+    /// enumerating a check result's sequence twice is not guaranteed to give the same items.
+    let private namespacesReportedAt (line, column) (uses: FSharpSymbolUse[]) =
+        uses
+        |> Array.filter (fun symbolUse ->
+            symbolUse.Range.StartLine = line && symbolUse.Range.StartColumn = column)
+        |> Array.choose (fun symbolUse ->
+            match symbolUse.Symbol with
+            | :? FSharpEntity as entity when entity.IsNamespace -> Some entity.DisplayName
+            | _ -> None)
+        |> Array.sort
+
+    [<Fact>]
+    let ``A namespace declared in several assemblies is reported once`` () =
+        let _, checkResults =
+            getParseAndCheckResults """
+open System
+
+let value = String.Empty
+"""
+
+        getSymbolUses checkResults
+        |> Array.ofSeq
+        |> namespacesReportedAt (2, 5)
+        |> shouldEqual [| "System" |]
+
+    [<Fact>]
+    let ``An identifier naming two different namespaces reports both`` () =
+        // `FSharp` is both the compiler service's root namespace and `Microsoft.FSharp` seen through the
+        // shortened path FSharp.Core allows, so this identifier names two namespaces at one range.
+        let source = """
+module M
+
+open FSharp.Compiler.Text
+
+let position = Position.pos0
+"""
+
+        let fileName = Path.ChangeExtension(getTemporaryFileName (), ".fs")
+        FileSystem.OpenFileForWriteShim(fileName).Write(source)
+        let projFileName = Path.ChangeExtension(getTemporaryFileName (), ".fsproj")
+        let dllName = Path.ChangeExtension(projFileName, ".dll")
+
+        let args =
+            Array.append
+                (mkProjectCommandLineArgsSilent (dllName, [ fileName ]))
+                [| "-r:" + typeof<FSharpChecker>.Assembly.Location |]
+
+        let options = checker.GetProjectOptionsFromCommandLineArgs(projFileName, args)
+
+        let results =
+            checker.ParseAndCheckProject options |> Async.RunSynchronouslyImmediate
+
+        results.GetAllUsesOfAllSymbols()
+        |> namespacesReportedAt (4, 5)
+        |> shouldEqual [| "FSharp"; "FSharp" |]
+
+    [<Fact>]
+    let ``Uses of a namespace opened in one file are found from the open`` () =
+        let fileName, options = mkTestFileAndOptions [||]
+
+        let source = """
+module M
+
+open System.Text
+
+let builder = StringBuilder()
+"""
+
+        let _, checkResults = parseAndCheckFile fileName source options
+
+        let openUse =
+            getSymbolUses checkResults
+            |> Array.ofSeq
+            |> Array.find (fun symbolUse ->
+                symbolUse.Range.StartLine = 4
+                && match symbolUse.Symbol with
+                   | :? FSharpEntity as entity -> entity.IsNamespace && entity.DisplayName = "Text"
+                   | _ -> false)
+
+        // Guards the item key store, which keys a namespace by the logical path every fragment of it shares.
+        checkResults.GetUsesOfSymbolInFile openUse.Symbol
+        |> Seq.filter (fun symbolUse -> symbolUse.Range.StartLine = 4)
+        |> Seq.length
+        |> shouldEqual 1
+
