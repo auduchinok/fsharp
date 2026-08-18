@@ -1853,9 +1853,9 @@ type ITypecheckResultsSink =
 
     abstract NotifyExprHasTypeSynthetic: TType * NameResolutionEnv * AccessorDomain * range -> unit
 
-    abstract NotifyNameResolution: pos * item: Item * TyparInstantiation * ItemOccurrence * NameResolutionEnv * AccessorDomain * range * replace: bool -> unit
+    abstract NotifyNameResolution: pos * item: Item * TyparInstantiation * ItemOccurrence * range * replace: bool -> unit
 
-    abstract NotifyMethodGroupNameResolution : pos * item: Item * itemMethodGroup: Item * TyparInstantiation * ItemOccurrence * NameResolutionEnv * AccessorDomain * range * replace: bool -> unit
+    abstract NotifyMethodGroupNameResolution : pos * item: Item * itemMethodGroup: Item * TyparInstantiation * ItemOccurrence * range * replace: bool -> unit
 
     abstract NotifyFormatSpecifierLocation: range * int -> unit
 
@@ -2098,7 +2098,7 @@ let ItemsAreEffectivelyEqualHash (g: TcGlobals) orig =
     | _ -> 389329
 
 [<System.Diagnostics.DebuggerDisplay("{DebugToString()}")>]
-type CapturedNameResolution(i: Item, tpinst, io: ItemOccurrence, nre: NameResolutionEnv, ad: AccessorDomain, m: range) =
+type CapturedNameResolution(i: Item, tpinst, io: ItemOccurrence, m: range) =
 
     member _.Pos = m.End
 
@@ -2107,12 +2107,6 @@ type CapturedNameResolution(i: Item, tpinst, io: ItemOccurrence, nre: NameResolu
     member _.ItemWithInst = ({ Item = i; TyparInstantiation = tpinst } : ItemWithInst)
 
     member _.ItemOccurrence = io
-
-    member _.DisplayEnv = nre.DisplayEnv
-
-    member _.NameResolutionEnv = nre
-
-    member _.AccessorDomain = ad
 
     member _.Range = m
 
@@ -2145,7 +2139,6 @@ type TcResolutions
 type TcSymbolUseData =
    { ItemWithInst: ItemWithInst
      ItemOccurrence: ItemOccurrence
-     DisplayEnv: DisplayEnv
      Range: range }
 
 /// Represents container for all name resolutions that were met so far when typechecking some particular file
@@ -2156,7 +2149,7 @@ type TcSymbolUseData =
 type TcSymbolUses(g, capturedNameResolutions: ResizeArray<CapturedNameResolution>, capturedRelatedSymbolUses: ResizeArray<range * Item * RelatedSymbolUseKind>, formatSpecifierLocations: (range * int)[]) =
 
     let toSymbolUseData (cnr: CapturedNameResolution) =
-        { ItemWithInst = cnr.ItemWithInst; ItemOccurrence = cnr.ItemOccurrence; DisplayEnv = cnr.DisplayEnv; Range = cnr.Range }
+        { ItemWithInst = cnr.ItemWithInst; ItemOccurrence = cnr.ItemOccurrence; Range = cnr.Range }
 
     // Make sure we only capture the information we really need to report symbol uses
     let allUsesOfSymbols =
@@ -2169,7 +2162,7 @@ type TcSymbolUses(g, capturedNameResolutions: ResizeArray<CapturedNameResolution
     let relatedSymbolUses =
         capturedRelatedSymbolUses
         |> ResizeArray.mapToSmallArrayChunks (fun (m, item, kind) ->
-            struct ({ ItemWithInst = { Item = item; TyparInstantiation = emptyTyparInst }; ItemOccurrence = ItemOccurrence.Use; DisplayEnv = DisplayEnv.Empty g; Range = m }, kind))
+            struct ({ ItemWithInst = { Item = item; TyparInstantiation = emptyTyparInst }; ItemOccurrence = ItemOccurrence.Use; Range = m }, kind))
 
     let capturedRelatedSymbolUses = ()
     do capturedRelatedSymbolUses // don't capture this!
@@ -2289,22 +2282,22 @@ type TcResultsSinkImpl(tcGlobals, ?sourceText: ISourceText) =
             if allowedRange m then
                 capturedExprTypings.Add((ty, nenv, ad, m.MakeSynthetic()))
 
-        member sink.NotifyNameResolution(endPos, item, tpinst, occurrenceType, nenv, ad, m, replace) =
+        member sink.NotifyNameResolution(endPos, item, tpinst, occurrenceType, m, replace) =
             if allowedRange m then
                 if replace then
                     remove m
 
                 if not (isAlreadyDone endPos item m) then
-                    capturedNameResolutions.Add(CapturedNameResolution(item, tpinst, occurrenceType, nenv, ad, m))
+                    capturedNameResolutions.Add(CapturedNameResolution(item, tpinst, occurrenceType, m))
 
-        member sink.NotifyMethodGroupNameResolution(endPos, item, itemMethodGroup, tpinst, occurrenceType, nenv, ad, m, replace) =
+        member sink.NotifyMethodGroupNameResolution(endPos, item, itemMethodGroup, tpinst, occurrenceType, m, replace) =
             if allowedRange m then
                 if replace then
                     remove m
 
                 if not (isAlreadyDone endPos item m) then
-                    capturedNameResolutions.Add(CapturedNameResolution(item, tpinst, occurrenceType, nenv, ad, m))
-                    capturedMethodGroupResolutions.Add(CapturedNameResolution(itemMethodGroup, [], occurrenceType, nenv, ad, m))
+                    capturedNameResolutions.Add(CapturedNameResolution(item, tpinst, occurrenceType, m))
+                    capturedMethodGroupResolutions.Add(CapturedNameResolution(itemMethodGroup, [], occurrenceType, m))
 
         member sink.NotifyFormatSpecifierLocation(m, numArgs) =
             capturedFormatSpecifierLocations.Add((m, numArgs))
@@ -2350,8 +2343,8 @@ type private BufferingTypecheckResultsSink(sink: ITypecheckResultsSink) =
         member _.NotifyEnvWithScope(m, nenv, ad) = buffered.Add(fun () -> sink.NotifyEnvWithScope(m, nenv, ad))
         member _.NotifyExprHasType(ty, nenv, ad, m) = buffered.Add(fun () -> sink.NotifyExprHasType(ty, nenv, ad, m))
         member _.NotifyExprHasTypeSynthetic(ty, nenv, ad, m) = buffered.Add(fun () -> sink.NotifyExprHasTypeSynthetic(ty, nenv, ad, m))
-        member _.NotifyNameResolution(p, item, tpinst, occ, nenv, ad, m, replace) = buffered.Add(fun () -> sink.NotifyNameResolution(p, item, tpinst, occ, nenv, ad, m, replace))
-        member _.NotifyMethodGroupNameResolution(p, item, itemGroup, tpinst, occ, nenv, ad, m, replace) = buffered.Add(fun () -> sink.NotifyMethodGroupNameResolution(p, item, itemGroup, tpinst, occ, nenv, ad, m, replace))
+        member _.NotifyNameResolution(p, item, tpinst, occ, m, replace) = buffered.Add(fun () -> sink.NotifyNameResolution(p, item, tpinst, occ, m, replace))
+        member _.NotifyMethodGroupNameResolution(p, item, itemGroup, tpinst, occ, m, replace) = buffered.Add(fun () -> sink.NotifyMethodGroupNameResolution(p, item, itemGroup, tpinst, occ, m, replace))
         member _.NotifyFormatSpecifierLocation(m, numArgs) = buffered.Add(fun () -> sink.NotifyFormatSpecifierLocation(m, numArgs))
         member _.NotifyRelatedSymbolUse(m, item, kind) = buffered.Add(fun () -> sink.NotifyRelatedSymbolUse(m, item, kind))
         member _.NotifyOpenDeclaration decl = buffered.Add(fun () -> sink.NotifyOpenDeclaration decl)
@@ -2425,23 +2418,23 @@ let RegisterUnionCaseTesterForProperty
     | _ -> ()
 
 /// Report a specific name resolution at a source range
-let CallNameResolutionSink (sink: TcResultsSink) (m: range, nenv, item, tpinst, occurrenceType, ad) =
+let CallNameResolutionSink (sink: TcResultsSink) (m: range, item, tpinst, occurrenceType) =
     match sink.CurrentSink with
     | None -> ()
     | Some currentSink ->
-        currentSink.NotifyNameResolution(m.End, item, tpinst, occurrenceType, nenv, ad, m, false)
+        currentSink.NotifyNameResolution(m.End, item, tpinst, occurrenceType, m, false)
 
-let CallMethodGroupNameResolutionSink (sink: TcResultsSink) (m: range, nenv, item, itemMethodGroup, tpinst, occurrenceType, ad) =
+let CallMethodGroupNameResolutionSink (sink: TcResultsSink) (m: range, item, itemMethodGroup, tpinst, occurrenceType) =
     match sink.CurrentSink with
     | None -> ()
     | Some currentSink ->
-        currentSink.NotifyMethodGroupNameResolution(m.End, item, itemMethodGroup, tpinst, occurrenceType, nenv, ad, m, false)
+        currentSink.NotifyMethodGroupNameResolution(m.End, item, itemMethodGroup, tpinst, occurrenceType, m, false)
 
-let CallNameResolutionSinkReplacing (sink: TcResultsSink) (m: range, nenv, item, tpinst, occurrenceType, ad) =
+let CallNameResolutionSinkReplacing (sink: TcResultsSink) (m: range, item, tpinst, occurrenceType) =
     match sink.CurrentSink with
     | None -> ()
     | Some currentSink ->
-        currentSink.NotifyNameResolution(m.End, item, tpinst, occurrenceType, nenv, ad, m, true)
+        currentSink.NotifyNameResolution(m.End, item, tpinst, occurrenceType, m, true)
 
 let CallRelatedSymbolSink (sink: TcResultsSink) (m: range, item: Item, kind: RelatedSymbolUseKind) =
     match sink.CurrentSink with
@@ -2538,7 +2531,7 @@ let CheckAllTyparsInferrable amap m item =
 type ResolutionInfo =
     | ResolutionInfo of revEntityPath: (range * EntityRef) list * reportResult: (ResultTyparChecker -> unit) * tinstEnclosing: EnclosingTypeInst
 
-    static member SendEntityPathToSink(sink, ncenv: NameResolver, nenv, occ, ad, ResolutionInfo(entityPath, warnings, _), typarChecker) =
+    static member SendEntityPathToSink(sink, ncenv: NameResolver, occ, ad, ResolutionInfo(entityPath, warnings, _), typarChecker) =
         entityPath |> List.iter (fun (m, eref: EntityRef) ->
             CheckEntityAttributes ncenv.g eref m |> CommitOperationResult
             CheckTyconAccessible ncenv.amap m ad eref |> ignore
@@ -2547,7 +2540,7 @@ type ResolutionInfo =
                     Item.ModuleOrNamespaces [eref]
                 else
                     Item.Types(eref.DisplayName, [FreshenTycon ncenv m eref])
-            CallNameResolutionSink sink (m, nenv, item, emptyTyparInst, occ, ad))
+            CallNameResolutionSink sink (m, item, emptyTyparInst, occ))
         warnings typarChecker
 
     static member Empty =
@@ -2681,7 +2674,7 @@ let rec ResolveLongIdentAsModuleOrNamespace sink (amap: Import.ImportMap) m firs
         let notifyNameResolution (modref: ModuleOrNamespaceRef) m =
             let item = Item.ModuleOrNamespaces [modref]
             let occurrence = if isOpenDecl then ItemOccurrence.Open else ItemOccurrence.Use
-            CallNameResolutionSink sink (m, nenv, item, emptyTyparInst, occurrence, ad)
+            CallNameResolutionSink sink (m, item, emptyTyparInst, occurrence)
 
         match moduleOrNamespaces.TryGetValue id.idText with
         | true, modrefs when not modrefs.IsEmpty -> 
@@ -3092,7 +3085,7 @@ let ResolveLongIdentInType sink (ncenv: NameResolver) nenv lookupKind m ad id fi
         |> AtMostOneResult m
         |> ForceRaise
 
-    ResolutionInfo.SendEntityPathToSink (sink, ncenv, nenv, ItemOccurrence.UseInType, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
+    ResolutionInfo.SendEntityPathToSink (sink, ncenv, ItemOccurrence.UseInType, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
     item, rest
 
 let private ResolveLongIdentInTyconRef (ncenv: NameResolver) nenv lookupKind (resInfo: ResolutionInfo) depth m ad id rest typeNameResInfo tcref maybeAppliedArgExpr =
@@ -3300,7 +3293,7 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
                     let search = ChooseTyconRefInExpr (ncenv, m, ad, nenv, id, typeNameResInfo, tcrefs)
                     match AtMostOneResult m search with
                     | Result (resInfo, item) ->
-                        ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
+                        ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
                         Some(resInfo.EnclosingTypeInst, item, rest)
                     | Exception e -> 
                         typeError <- Some e
@@ -3390,7 +3383,7 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
                 match res with 
                 | Exception e -> raze e
                 | Result (resInfo, item) -> 
-                ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
+                ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
                 success (resInfo.EnclosingTypeInst, item, rest)
 
         // A compound identifier.
@@ -3480,7 +3473,7 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
               match res with 
               | Exception e -> raze e
               | Result (resInfo, item, rest) -> 
-                  ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
+                  ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap m item))
                   success (resInfo.EnclosingTypeInst, item, rest)
 
 let ResolveExprLongIdent sink (ncenv: NameResolver) m ad nenv typeNameResInfo lid maybeAppliedArgExpr =
@@ -3613,13 +3606,13 @@ let rec ResolvePatternLongIdentPrim sink (ncenv: NameResolver) fullyQualified wa
                     match LookupTypeNameInEnvNoArity fullyQualified id.idText nenv with
                     | tcref :: _ when tcref.IsUnionTycon || tcref.IsEnumTycon ->
                         let res = ResolutionInfo.Empty.AddEntity (id.idRange, tcref)
-                        ResolutionInfo.SendEntityPathToSink (sink, ncenv, nenv, ItemOccurrence.Pattern, ad, res, ResultTyparChecker(fun () -> true))
+                        ResolutionInfo.SendEntityPathToSink (sink, ncenv, ItemOccurrence.Pattern, ad, res, ResultTyparChecker(fun () -> true))
                         Item.Types (id.idText, [ mkWoNullAppTy tcref [] ])
                     | _ ->
                         match ResolveLongIdentAsModuleOrNamespace sink ncenv.amap id.idRange true fullyQualified nenv ad id [] false ShouldNotifySink.Yes with
                         | Result ((_, mref, _) :: _) ->
                             let res = ResolutionInfo.Empty.AddEntity (id.idRange, mref)
-                            ResolutionInfo.SendEntityPathToSink (sink, ncenv, nenv, ItemOccurrence.Pattern, ad, res, ResultTyparChecker(fun () -> true))
+                            ResolutionInfo.SendEntityPathToSink (sink, ncenv, ItemOccurrence.Pattern, ad, res, ResultTyparChecker(fun () -> true))
                             Item.ModuleOrNamespaces [ mref ]
                         | _ ->
                             Item.NewDef id
@@ -3651,7 +3644,7 @@ let rec ResolvePatternLongIdentPrim sink (ncenv: NameResolver) fullyQualified wa
                 |> AtMostOneResult m
                 |> ForceRaise
 
-            ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> true))
+            ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> true))
 
             match rest with
             | [] -> res
@@ -3727,18 +3720,18 @@ let rec ResolveTypeLongIdentInTyconRefPrim (ncenv: NameResolver) (typeNameResInf
         AtMostOneResult m tyconSearch
 
 /// Resolve a long identifier representing a type name and report the result
-let ResolveTypeLongIdentInTyconRef sink (ncenv: NameResolver) nenv typeNameResInfo ad m tcref (lid: Ident list) =
+let ResolveTypeLongIdentInTyconRef sink (ncenv: NameResolver) typeNameResInfo ad m tcref (lid: Ident list) =
     let resInfo, tcref =
         match lid with
         | [] ->
             error(Error(FSComp.SR.nrUnexpectedEmptyLongId(), m))
         | id :: rest ->
             ForceRaise (ResolveTypeLongIdentInTyconRefPrim ncenv typeNameResInfo ad ResolutionInfo.Empty PermitDirectReferenceToGeneratedType.No 0 m tcref id rest)
-    ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> true))
+    ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> true))
 
     let _, tinst, tyargs = FreshenTypeInst ncenv.g m (tcref.Typars)
     let item = Item.Types(tcref.DisplayName, [TType_app(tcref, tyargs, ncenv.g.knownWithoutNull)])
-    CallNameResolutionSink sink (rangeOfLid lid, nenv, item, tinst, ItemOccurrence.UseInType, ad)
+    CallNameResolutionSink sink (rangeOfLid lid, item, tinst, ItemOccurrence.UseInType)
 
     tcref, tyargs
 
@@ -3767,7 +3760,7 @@ let rec private ResolveTypeLongIdentInModuleOrNamespace sink nenv (ncenv: NameRe
             match modref.ModuleOrNamespaceType.ModulesAndNamespacesByDemangledName.TryGetValue id.idText with
             | true, AccessibleEntityRef ncenv.amap m ad modref submodref ->
                 let item = Item.ModuleOrNamespaces [submodref]
-                CallNameResolutionSink sink (id.idRange, nenv, item, emptyTyparInst, ItemOccurrence.Use, ad)
+                CallNameResolutionSink sink (id.idRange, item, emptyTyparInst, ItemOccurrence.Use)
                 let resInfo = resInfo.AddEntity(id.idRange, submodref)
                 ResolveTypeLongIdentInModuleOrNamespace sink nenv ncenv typeNameResInfo ad genOk resInfo (depth+1) m submodref submodref.ModuleOrNamespaceType id2 rest2
             | _ ->
@@ -3897,11 +3890,11 @@ let ResolveTypeLongIdentAux sink (ncenv: NameResolver) occurrence fullyQualified
     // Register the result as a name resolution
     match res with
     | Result (resInfo, tcref) ->
-        ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.UseInType, ad, resInfo, ResultTyparChecker(fun () -> true))
+        ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.UseInType, ad, resInfo, ResultTyparChecker(fun () -> true))
 
         let _, tinst, tyargs = FreshenTypeInst ncenv.g m (tcref.Typars)
         let item = Item.Types(tcref.DisplayName, [TType_app(tcref, tyargs, ncenv.g.knownWithoutNull)])
-        CallNameResolutionSink sink (m, nenv, item, tinst, occurrence, ad)
+        CallNameResolutionSink sink (m, item, tinst, occurrence)
 
         Result(resInfo, tcref, tyargs)
 
@@ -4110,7 +4103,7 @@ let ResolveField sink ncenv nenv ad ty fldInfo allFields =
     |> Option.map (fun res ->
         let checker = ResultTyparChecker(fun () -> true)
         res |> List.map (fun (resInfo, rfref) ->
-            ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.UseInType, ad, resInfo, checker)
+            ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.UseInType, ad, resInfo, checker)
             rfref))
 
 /// Resolve a long identifier representing a nested record field.
@@ -4222,7 +4215,7 @@ let ResolveNestedField sink (ncenv: NameResolver) nenv ad recdTy lid =
         match tyconIdOpt with
         | Some _ ->
             // Report every type-qualifier occurrence before grouping collapses duplicates; UseInType matches ResolveField.
-            ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.UseInType, ad, resInfo, ResultTyparChecker(fun () -> true))
+            ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.UseInType, ad, resInfo, ResultTyparChecker(fun () -> true))
         | None -> ()
 
         let idsBeforeField =
@@ -4384,7 +4377,7 @@ let ResolveLongIdentAsExprAndComputeRange (sink: TcResultsSink) (ncenv: NameReso
                 | Item.ActivePatternResult _ -> ItemOccurrence.Binding
                 | _ -> ItemOccurrence.Use
 
-            CallMethodGroupNameResolutionSink sink (itemRange, nenv, refinedItem, item, tpinst, occurrence, ad)
+            CallMethodGroupNameResolutionSink sink (itemRange, refinedItem, item, tpinst, occurrence)
 
             // #16621
             match refinedItem with
@@ -4409,7 +4402,7 @@ let ResolveLongIdentAsExprAndComputeRange (sink: TcResultsSink) (ncenv: NameReso
                 AfterResolution.RecordResolution(None, (fun tpinst -> callSink(item, tpinst)), callSinkWithSpecificOverload, (fun () -> callSink (item, emptyTyparInst)))
 
             elif isWrongItemInExpr item then
-               CallNameResolutionSink sink (itemRange, nenv, item, emptyTyparInst, ItemOccurrence.InvalidUse, ad)
+               CallNameResolutionSink sink (itemRange, item, emptyTyparInst, ItemOccurrence.InvalidUse)
                AfterResolution.DoNothing
 
             else
@@ -4439,7 +4432,7 @@ let ResolveExprDotLongIdentAndComputeRange (sink: TcResultsSink) (ncenv: NameRes
 
     // "true" resolution
     let resInfo, item, rest, itemRange, itemIdentRange = resolveExpr findFlag
-    ResolutionInfo.SendEntityPathToSink(sink, ncenv, nenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap itemRange item))
+    ResolutionInfo.SendEntityPathToSink(sink, ncenv, ItemOccurrence.Use, ad, resInfo, ResultTyparChecker(fun () -> CheckAllTyparsInferrable ncenv.amap itemRange item))
 
     // Record the precise resolution of the field for intellisense/goto definition
     let afterResolution =
@@ -4459,7 +4452,7 @@ let ResolveExprDotLongIdentAndComputeRange (sink: TcResultsSink) (ncenv: NameRes
             let callSink (refinedItem, tpinst) =
                 let refinedItem = FilterMethodGroups ncenv itemRange refinedItem staticOnly
                 let unrefinedItem = FilterMethodGroups ncenv itemRange unrefinedItem staticOnly
-                CallMethodGroupNameResolutionSink sink (itemRange, nenv, refinedItem, unrefinedItem, tpinst, ItemOccurrence.Use, ad)
+                CallMethodGroupNameResolutionSink sink (itemRange, refinedItem, unrefinedItem, tpinst, ItemOccurrence.Use)
 
                 // #16621
                 match refinedItem with

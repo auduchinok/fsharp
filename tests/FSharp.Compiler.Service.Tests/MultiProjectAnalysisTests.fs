@@ -808,7 +808,8 @@ let ``Test active patterns' XmlDocSig declared in referenced projects`` () =
     let divisibleByGroup = divisibleByActivePatternCase.Group
     divisibleByGroup.IsTotal |> shouldEqual false
     divisibleByGroup.Names |> Seq.toList |> shouldEqual ["DivisibleBy"]
-    divisibleByGroup.OverallType.Format(divisibleBySymbolUse.Value.DisplayContext) |> shouldEqual "int -> int -> unit option"
+    let divisibleByDisplayContext = backgroundTypedParse1.GetDisplayContextForPos(divisibleBySymbolUse.Value.Range.End).Value
+    divisibleByGroup.OverallType.Format(divisibleByDisplayContext) |> shouldEqual "int -> int -> unit option"
     let divisibleByEntity = divisibleByGroup.DeclaringEntity.Value
     divisibleByEntity.ToString() |> shouldEqual "Project3A"
 

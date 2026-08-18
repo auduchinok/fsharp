@@ -407,15 +407,6 @@ type internal CapturedNameResolution =
     /// Information about the occurrence of the symbol
     member ItemOccurrence: ItemOccurrence
 
-    /// Information about printing. For example, should redundant keywords be hidden?
-    member DisplayEnv: DisplayEnv
-
-    /// Naming environment--for example, currently open namespaces.
-    member NameResolutionEnv: NameResolutionEnv
-
-    /// The access rights of code at the location
-    member AccessorDomain: AccessorDomain
-
     /// The starting and ending position
     member Range: range
 
@@ -448,7 +439,6 @@ type internal TcResolutions =
 type TcSymbolUseData =
     { ItemWithInst: ItemWithInst
       ItemOccurrence: ItemOccurrence
-      DisplayEnv: DisplayEnv
       Range: range }
 
 /// Represents container for all name resolutions that were met so far when typechecking some particular file
@@ -489,13 +479,10 @@ type ITypecheckResultsSink =
     abstract NotifyExprHasTypeSynthetic: TType * NameResolutionEnv * AccessorDomain * range -> unit
 
     /// Record that a name resolution occurred at a specific location in the source
-    abstract NotifyNameResolution:
-        pos * Item * TyparInstantiation * ItemOccurrence * NameResolutionEnv * AccessorDomain * range * bool -> unit
+    abstract NotifyNameResolution: pos * Item * TyparInstantiation * ItemOccurrence * range * bool -> unit
 
     /// Record that a method group name resolution occurred at a specific location in the source
-    abstract NotifyMethodGroupNameResolution:
-        pos * Item * Item * TyparInstantiation * ItemOccurrence * NameResolutionEnv * AccessorDomain * range * bool ->
-            unit
+    abstract NotifyMethodGroupNameResolution: pos * Item * Item * TyparInstantiation * ItemOccurrence * range * bool -> unit
 
     /// Record that a printf format specifier occurred at a specific location in the source
     abstract NotifyFormatSpecifierLocation: range * int -> unit
@@ -634,17 +621,14 @@ val internal CallEnvSink: TcResultsSink -> range * NameResolutionEnv * AccessorD
 
 /// Report a specific name resolution at a source range
 val internal CallNameResolutionSink:
-    TcResultsSink -> range * NameResolutionEnv * Item * TyparInstantiation * ItemOccurrence * AccessorDomain -> unit
+    TcResultsSink -> range * Item * TyparInstantiation * ItemOccurrence -> unit
 
 /// Report a specific method group name resolution at a source range
 val internal CallMethodGroupNameResolutionSink:
-    TcResultsSink ->
-    range * NameResolutionEnv * Item * Item * TyparInstantiation * ItemOccurrence * AccessorDomain ->
-        unit
+    TcResultsSink -> range * Item * Item * TyparInstantiation * ItemOccurrence -> unit
 
 /// Report a specific name resolution at a source range, replacing any previous resolutions
-val internal CallNameResolutionSinkReplacing:
-    TcResultsSink -> range * NameResolutionEnv * Item * TyparInstantiation * ItemOccurrence * AccessorDomain -> unit
+val internal CallNameResolutionSinkReplacing: TcResultsSink -> range * Item * TyparInstantiation * ItemOccurrence -> unit
 
 /// #16621
 val internal RegisterUnionCaseTesterForProperty: TcResultsSink -> identRange: range -> PropInfo list -> unit
@@ -821,7 +805,6 @@ val internal ResolvePatternLongIdent:
 val internal ResolveTypeLongIdentInTyconRef:
     sink: TcResultsSink ->
     ncenv: NameResolver ->
-    nenv: NameResolutionEnv ->
     typeNameResInfo: TypeNameResolutionInfo ->
     ad: AccessorDomain ->
     m: range ->

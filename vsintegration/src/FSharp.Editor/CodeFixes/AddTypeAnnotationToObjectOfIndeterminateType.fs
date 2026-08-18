@@ -75,7 +75,11 @@ type internal AddTypeAnnotationToObjectOfIndeterminateTypeFixProvider [<Importin
                         | Some symbolUse ->
                             match symbolUse.Symbol with
                             | :? FSharpMemberOrFunctionOrValue as mfv when not mfv.FullType.IsGenericParameter ->
-                                let typeString = mfv.FullType.FormatWithConstraints symbolUse.DisplayContext
+                                let displayContext =
+                                    checkFileResults.GetDisplayContextForPos symbolUse.Range.End
+                                    |> Option.defaultValue FSharpDisplayContext.Empty
+
+                                let typeString = mfv.FullType.FormatWithConstraints displayContext
 
                                 let alreadyWrappedInParens =
                                     let rec leftLoop ch pos =

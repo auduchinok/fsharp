@@ -2373,8 +2373,6 @@ FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: Boolean get_IsFromType()
 FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: Boolean get_IsFromUse()
 FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: Boolean get_IsPrivateToFile()
 FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: Boolean get_IsPrivateToFileAndSignatureFile()
-FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: FSharp.Compiler.Symbols.FSharpDisplayContext DisplayContext
-FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: FSharp.Compiler.Symbols.FSharpDisplayContext get_DisplayContext()
 FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: FSharp.Compiler.Symbols.FSharpSymbol Symbol
 FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: FSharp.Compiler.Symbols.FSharpSymbol get_Symbol()
 FSharp.Compiler.CodeAnalysis.FSharpSymbolUse: FSharp.Compiler.Text.Range Range

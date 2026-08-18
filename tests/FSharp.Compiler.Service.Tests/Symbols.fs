@@ -1,4 +1,4 @@
-module FSharp.Compiler.Service.Tests.Symbols
+﻿module FSharp.Compiler.Service.Tests.Symbols
 
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.Service.Tests.Common
@@ -322,9 +322,10 @@ type E = Ns1.Ns2.T
            "E", "Ns1.Ns2.T" |]
         |> Array.iter (fun (symbolName, expectedPrintedType) ->
             let symbolUse = findSymbolUseByName symbolName checkResults
+            let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
             match symbolUse.Symbol with
             | :? FSharpEntity as entity ->
-                entity.AbbreviatedType.Format(symbolUse.DisplayContext)
+                entity.AbbreviatedType.Format(displayContext)
                 |> shouldEqual expectedPrintedType
 
             | _ -> failwithf "Couldn't get entity: %s" symbolName)
@@ -364,8 +365,9 @@ IList<int>
 """
         let symbolUse = findSymbolUseByName "IList`1" checkResults
         let symbol = symbolUse.Symbol :?> FSharpEntity
+        let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
         let typeArg = symbol.GenericArguments[0]
-        typeArg.Format(symbolUse.DisplayContext) |> shouldEqual "int"
+        typeArg.Format(displayContext) |> shouldEqual "int"
 
     [<Fact>]
     let ``Interface 05 - Type arg`` () =
@@ -381,8 +383,9 @@ type I<'T> =
             |> Seq.findBack (fun symbolUse -> symbolUse.Symbol.DisplayName = "I")
 
         let symbol = symbolUse.Symbol :?> FSharpEntity
+        let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
         let typeArg = symbol.GenericArguments[0]
-        typeArg.Format(symbolUse.DisplayContext) |> shouldEqual "int"
+        typeArg.Format(displayContext) |> shouldEqual "int"
 
     [<Fact>]
     let ``Interface 06 - Type arg`` () =
@@ -398,8 +401,9 @@ type I<'T> =
             |> Seq.findBack (fun symbolUse -> symbolUse.Symbol.DisplayName = "I")
 
         let symbol = symbolUse.Symbol :?> FSharpEntity
+        let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
         let typeArg = symbol.GenericArguments[0]
-        typeArg.Format(symbolUse.DisplayContext) |> shouldEqual "int"
+        typeArg.Format(displayContext) |> shouldEqual "int"
 
     [<Fact>]
     let ``Operator 01 - Type arg`` () =
@@ -421,9 +425,10 @@ let tester: int folks = Cons(1, Nil)
             let prefixForm = "folks<int>"
             let entity = "tester"
             let symbolUse = findSymbolUseByName entity checkResults
+            let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
             match symbolUse.Symbol with
             | :? FSharpMemberOrFunctionOrValue as v ->
-                    v.FullType.Format (symbolUse.DisplayContext.WithPrefixGenericParameters())
+                    v.FullType.Format (displayContext.WithPrefixGenericParameters())
                     |> shouldEqual prefixForm
             | _ -> failwithf "Couldn't get member: %s" entity
 
@@ -439,9 +444,10 @@ let tester: Folks<int> = Cons(1, Nil)
             let suffixForm = "int Folks"
             let entity = "tester"
             let symbolUse = findSymbolUseByName entity checkResults
+            let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
             match symbolUse.Symbol with
             | :? FSharpMemberOrFunctionOrValue as v ->
-                    v.FullType.Format (symbolUse.DisplayContext.WithSuffixGenericParameters())
+                    v.FullType.Format (displayContext.WithSuffixGenericParameters())
                     |> shouldEqual suffixForm
             | _ -> failwithf "Couldn't get member: %s" entity
 
@@ -464,9 +470,10 @@ let tester2: int Group = []
             cases
             |> List.iter (fun (entityName, expectedTypeFormat) ->
                 let symbolUse = findSymbolUseByName entityName checkResults
+                let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
                 match symbolUse.Symbol with
                 | :? FSharpMemberOrFunctionOrValue as v ->
-                        v.FullType.Format symbolUse.DisplayContext
+                        v.FullType.Format displayContext
                         |> shouldEqual expectedTypeFormat
                 | _ -> failwithf "Couldn't get member: %s" entityName
             )
@@ -479,9 +486,10 @@ let tester2: int Group = []
             let commas = System.String(',', rank - 1)
             let _, checkResults = getParseAndCheckResults $""" let myArr : int[{commas}] = Unchecked.defaultOf<_>"""  
             let symbolUse = findSymbolUseByName "myArr" checkResults
+            let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
             match symbolUse.Symbol  with
             | :? FSharpMemberOrFunctionOrValue as v ->
-                v.FullType.Format symbolUse.DisplayContext
+                v.FullType.Format displayContext
                 |> shouldEqual $"int array{rank}d"
 
             | other -> failwithf "myArr was supposed to be a value, but is %A"  other
@@ -493,8 +501,8 @@ let f (x: int list seq) = ()
 """
         let symbolUse = findSymbolUseByName "x" checkResults
         let symbol = symbolUse.Symbol :?> FSharpMemberOrFunctionOrValue
+        let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
         let typeArg = symbol.FullType
-        let displayContext = symbolUse.DisplayContext
 
         let topLevelPrefixStyle =
             displayContext.WithTopLevelPrefixGenericParameters()
@@ -589,8 +597,9 @@ let f (x: {declaredType}) = ()
 """
         let symbolUse = findSymbolUseByName "x" checkResults
         let symbol = symbolUse.Symbol :?> FSharpMemberOrFunctionOrValue
+        let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
         let typeArg = symbol.FullType
-        typeArg.Format(symbolUse.DisplayContext) |> shouldEqual formattedType
+        typeArg.Format(displayContext) |> shouldEqual formattedType
 
     [<Theory>]
     [<InlineData("let x: IEnumerable<int> = []", "IEnumerable<int>")>]
@@ -603,8 +612,9 @@ open System.Linq
 """
         let symbolUse = findSymbolUseByName "x" checkResults
         let symbol = symbolUse.Symbol :?> FSharpMemberOrFunctionOrValue
+        let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
         let typeArg = symbol.FullType
-        typeArg.Format(symbolUse.DisplayContext) |> shouldEqual formattedType
+        typeArg.Format(displayContext) |> shouldEqual formattedType
 
 
 module FSharpMemberOrFunctionOrValue =
@@ -1008,10 +1018,11 @@ module GetValSignatureText =
         match symbolUseOpt with
         | None -> failwith "Expected symbol"
         | Some symbolUse ->
+            let displayContext = checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
             match symbolUse.Symbol with
             | :? FSharpMemberOrFunctionOrValue as mfv ->
                 let expected = expected.Replace("\r", "")
-                let signature = mfv.GetValSignatureText(symbolUse.DisplayContext, symbolUse.Range)
+                let signature = mfv.GetValSignatureText(displayContext, symbolUse.Range)
                 if expected <> signature.Value then
                     printfn $"Expected:\n{expected}\n\n\nActual:\n{signature.Value}"
                 Assert.Equal(expected, signature.Value)

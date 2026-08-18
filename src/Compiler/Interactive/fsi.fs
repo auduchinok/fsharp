@@ -2433,7 +2433,6 @@ type internal FsiDynamicCompiler
 
                             let symbolUse =
                                 FSharpSymbolUse(
-                                    istate.tcState.TcEnvFromImpls.DisplayEnv,
                                     symbol,
                                     [],
                                     ItemOccurrence.Binding,
@@ -2448,7 +2447,6 @@ type internal FsiDynamicCompiler
 
                         let symbolUse =
                             FSharpSymbolUse(
-                                istate.tcState.TcEnvFromImpls.DisplayEnv,
                                 symbol,
                                 [],
                                 ItemOccurrence.Binding,

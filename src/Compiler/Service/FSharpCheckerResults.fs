@@ -209,7 +209,7 @@ module internal FSharpCheckerResultsSettings =
             .Value
 
 [<Sealed>]
-type FSharpSymbolUse(denv: DisplayEnv, symbol: FSharpSymbol, inst: TyparInstantiation, itemOcc, range: range) =
+type FSharpSymbolUse(symbol: FSharpSymbol, inst: TyparInstantiation, itemOcc, range: range) =
 
     member _.Symbol = symbol
 
@@ -218,8 +218,6 @@ type FSharpSymbolUse(denv: DisplayEnv, symbol: FSharpSymbol, inst: TyparInstanti
 
         inst
         |> List.map (fun (v, ty) -> FSharpGenericParameter(cenv, v), FSharpType(cenv, ty))
-
-    member _.DisplayContext = FSharpDisplayContext(fun _ -> denv)
 
     member x.IsDefinition = x.IsFromDefinition
 
@@ -236,9 +234,10 @@ type FSharpSymbolUse(denv: DisplayEnv, symbol: FSharpSymbol, inst: TyparInstanti
     member _.IsFromUse = itemOcc = ItemOccurrence.Use
 
     member _.IsFromComputationExpression =
+        let g = symbol.SymbolEnv.g
         match symbol.Item, itemOcc with
         // 'seq' in 'seq { ... }' gets colored as keywords
-        | Item.Value vref, ItemOccurrence.Use when valRefEq denv.g denv.g.seq_vref vref -> true
+        | Item.Value vref, ItemOccurrence.Use when valRefEq g g.seq_vref vref -> true
         // custom builders, custom operations get colored as keywords
         | (Item.CustomBuilder _ | Item.CustomOperation _), ItemOccurrence.Use -> true
         | _ -> false
@@ -497,6 +496,7 @@ type internal TypeCheckInfo
     /// from the name resolution and filter them by the specified residue (?)
     let GetPreciseItemsFromNameResolution (line, colAtEndOfNames, membersByResidue, filterCtors, resolveOverloads, allowObsolete) =
         let endOfNamesPos = mkPos line colAtEndOfNames
+        let (nenv, ad), _ = GetBestEnvForPos endOfNamesPos
 
         // Logic below expects the list to be in reverse order of resolution
         let cnrs =
@@ -510,18 +510,18 @@ type internal TypeCheckInfo
         //
         // If we're looking for members using a residue, we'd expect only
         // a single item (pick the first one) and we need the residue (which may be "")
-        | CNR(_, ItemOccurrence.InvalidUse, _, _, _, _) :: _, _ -> NameResResult.Empty
+        | CNR(_, ItemOccurrence.InvalidUse, _) :: _, _ -> NameResResult.Empty
 
-        | CNR(Item.Types(_, ty :: _), _, denv, nenv, ad, m) :: _, Some _ ->
+        | CNR(Item.Types(_, ty :: _), _, m) :: _, Some _ ->
             let targets =
                 ResolveCompletionTargets.All(ConstraintSolver.IsApplicableMethApprox g amap m)
 
             let items = ResolveCompletionsInType ncenv nenv targets m ad true ty allowObsolete
             let items = List.map ItemWithNoInst items
-            ReturnItemsOfType items g denv m filterCtors
+            ReturnItemsOfType items g nenv.DisplayEnv m filterCtors
 
         // Exact resolution via 'T.$
-        | CNR(Item.TypeVar(_, tp), _, denv, nenv, ad, m) :: _, Some _ ->
+        | CNR(Item.TypeVar(_, tp), _, m) :: _, Some _ ->
             let targets =
                 ResolveCompletionTargets.All(ConstraintSolver.IsApplicableMethApprox g amap m)
 
@@ -529,7 +529,7 @@ type internal TypeCheckInfo
                 ResolveCompletionsInType ncenv nenv targets m ad true (mkTyparTy tp) allowObsolete
 
             let items = List.map ItemWithNoInst items
-            ReturnItemsOfType items g denv m filterCtors
+            ReturnItemsOfType items g nenv.DisplayEnv m filterCtors
 
         // Value reference from the name resolution. Primarily to disallow "let x.$ = 1"
         // In most of the cases, value references can be obtained from expression typings or from environment,
@@ -538,10 +538,10 @@ type internal TypeCheckInfo
         //   let varA = if b then 0 else varA.
         // then the expression typings get confused (thinking 'varA:int'), so we use name resolution even for usual values.
 
-        | CNR(Item.Value(vref), occurrence, denv, nenv, ad, m) :: _, Some _ ->
+        | CNR(Item.Value(vref), occurrence, m) :: _, Some _ ->
             if occurrence = ItemOccurrence.Binding || occurrence = ItemOccurrence.Pattern then
                 // Return empty list to stop further lookup - for value declarations
-                NameResResult.Cancel(denv, m)
+                NameResResult.Cancel(nenv.DisplayEnv, m)
             else
                 // If we have any valid items for the value, then return completions for its type now.
                 // Adjust the type in case this is the 'this' pointer stored in a reference cell.
@@ -565,10 +565,10 @@ type internal TypeCheckInfo
 
                 let items = ResolveCompletionsInType ncenv nenv targets m ad false ty allowObsolete
                 let items = List.map ItemWithNoInst items
-                ReturnItemsOfType items g denv m filterCtors
+                ReturnItemsOfType items g nenv.DisplayEnv m filterCtors
 
         // No residue, so the items are the full resolution of the name
-        | CNR(_, _, denv, _, _, m) :: _, None ->
+        | CNR(_, _, m) :: _, None ->
             let items =
                 cnrs
                 |> List.map (fun cnr -> cnr.ItemWithInst)
@@ -579,7 +579,7 @@ type internal TypeCheckInfo
                     | Item.CustomOperation(CustomOperations.Into, _, _) -> false
                     | _ -> true)
 
-            ReturnItemsOfType items g denv m filterCtors
+            ReturnItemsOfType items g nenv.DisplayEnv m filterCtors
         | _, _ -> NameResResult.Empty
 
     let TryGetTypeFromNameResolution (line, colAtEndOfNames, membersByResidue, resolveOverloads) =
@@ -591,8 +591,8 @@ type internal TypeCheckInfo
             |> List.rev
 
         match items, membersByResidue with
-        | CNR(Item.Types(_, ty :: _), _, _, _, _, _) :: _, Some _ -> Some ty
-        | CNR(Item.Value(vref), occurrence, _, _, _, _) :: _, Some _ ->
+        | CNR(Item.Types(_, ty :: _), _, _) :: _, Some _ -> Some ty
+        | CNR(Item.Value(vref), occurrence, _) :: _, Some _ ->
             if (occurrence = ItemOccurrence.Binding || occurrence = ItemOccurrence.Pattern) then
                 None
             else
@@ -677,6 +677,8 @@ type internal TypeCheckInfo
             | _ -> [])
 
     let GetNamedParametersAndSettableFields endOfExprPos cursorLine (lineStr: string) allowObsolete =
+        let (nenv, ad), _ = GetBestEnvForPos endOfExprPos
+
         let cnrs =
             GetCapturedNameResolutions endOfExprPos ResolveOverloads.No
             |> ResizeArray.toList
@@ -712,7 +714,7 @@ type internal TypeCheckInfo
         let fromCnrs =
             cnrs
             |> List.tryPick (function
-                | CNR(NamedArgGroup(_, meths, isCtor), _, _, nenv, ad, m) -> Some(buildGroup meths isCtor nenv ad m)
+                | CNR(NamedArgGroup(_, meths, isCtor), _, m) -> Some(buildGroup meths isCtor nenv ad m)
                 | _ -> None)
 
         // For an overloaded call with a malformed trailing argument the type-checker can abandon overload
@@ -1494,6 +1496,7 @@ type internal TypeCheckInfo
             declaredItems
         else
 
+            let (nenv, _), _ = GetBestEnvForPos pos
             sResolutions.CapturedNameResolutions
             |> ResizeArray.tryPick (fun r ->
                 match r.Item with
@@ -1506,7 +1509,7 @@ type internal TypeCheckInfo
 
                     Some(
                         SuggestNameForUnionCaseFieldPattern g caseIdRange.End pos uci indexOrName isTheOnlyField list,
-                        r.DisplayEnv,
+                        nenv.DisplayEnv,
                         r.Range
                     )
                 | _ -> None)
@@ -1821,7 +1824,7 @@ type internal TypeCheckInfo
             completionContextAtPos: (pos * CompletionContext option) option,
             getAllSymbols: unit -> AssemblySymbol list,
             options: FSharpCodeCompletionOptions
-        ) : (CompletionItem list * DisplayEnv * CompletionContext option * range) option =
+        ) : (CompletionItem list * CompletionContext option * range) option =
 
         let loc =
             match colAtEndOfNamesAndResidue with
@@ -2141,7 +2144,7 @@ type internal TypeCheckInfo
                         options
                     )
 
-        res |> Option.map (fun (items, denv, m) -> items, denv, completionContext, m)
+        res |> Option.map (fun (items, _, m) -> items, completionContext, m)
 
     /// Return 'false' if this is not a completion item valid in an interface file.
     let IsValidSignatureFileItem item =
@@ -2195,12 +2198,22 @@ type internal TypeCheckInfo
         FSharpType(cenv, typ)
 
     /// Get the auto-complete items at a location
-    member _.GetDeclarations(parseResultsOpt, line, lineStr, partialName, completionContextAtPos, getAllEntities, options) =
+    member _.GetDeclarations(parseResultsOpt, line, lineStr: string, partialName, completionContextAtPos, getAllEntities, options) =
         let isSigFile = SourceFileImpl.IsSignatureFile mainInputFileName
 
         DiagnosticsScope.Protect
             range0
             (fun () ->
+
+                let loc =
+                    match partialName.EndColumn + 1 with
+                    | pastEndOfLine when pastEndOfLine >= lineStr.Length -> lineStr.Length
+                    | atDot when lineStr[atDot] = '.' -> atDot + 1
+                    | atStart when atStart = 0 -> 0
+                    | otherwise -> otherwise - 1
+
+                let pos = mkPos line loc
+                let (nenv, _), _ = GetBestEnvForPos pos
 
                 let declItemsOpt =
                     GetDeclItemsForNamesAtPosition(
@@ -2220,7 +2233,7 @@ type internal TypeCheckInfo
 
                 match declItemsOpt with
                 | None -> DeclarationListInfo.Empty
-                | Some(items, denv, ctx, m) ->
+                | Some(items, ctx, m) ->
                     let items =
                         if isSigFile then
                             items |> List.filter (fun x -> IsValidSignatureFileItem x.Item)
@@ -2245,7 +2258,7 @@ type internal TypeCheckInfo
                         infoReader,
                         tcAccessRights,
                         m,
-                        denv,
+                        nenv.DisplayEnv,
                         getAccessibility,
                         items,
                         currentNamespaceOrModule,
@@ -2283,7 +2296,7 @@ type internal TypeCheckInfo
 
                 match declItemsOpt with
                 | None -> List.Empty
-                | Some(items, denv, _, m) ->
+                | Some(items, _, m) ->
                     let items =
                         if isSigFile then
                             items |> List.filter (fun x -> IsValidSignatureFileItem x.Item)
@@ -2351,7 +2364,7 @@ type internal TypeCheckInfo
                                 items
                                 |> List.map (fun item ->
                                     let symbol = FSharpSymbol.Create(cenv, item.Item)
-                                    FSharpSymbolUse(denv, symbol, item.ItemWithInst.TyparInstantiation, ItemOccurrence.Use, m)))
+                                    FSharpSymbolUse(symbol, item.ItemWithInst.TyparInstantiation, ItemOccurrence.Use, m)))
 
                     //end filtering
                     items)
@@ -2463,9 +2476,20 @@ type internal TypeCheckInfo
                             FSharpCodeCompletionOptions.Default
                         )
 
+                    let loc =
+                        match colAtEndOfNames with
+                        | pastEndOfLine when pastEndOfLine >= lineStr.Length -> lineStr.Length
+                        | atDot when lineStr[atDot] = '.' -> atDot + 1
+                        | atStart when atStart = 0 -> 0
+                        | otherwise -> otherwise - 1
+
+                    let pos = mkPos line loc
+                    let (nenv, _), _ = GetBestEnvForPos pos
+                    let denv = nenv.DisplayEnv
+
                     match declItemsOpt with
                     | None -> emptyToolTip
-                    | Some(items, denv, _, m) ->
+                    | Some(items, _, m) ->
                         match items with
                         | [ { Kind = CompletionItemKind.Property } as prop
                             { Kind = CompletionItemKind.Field }
@@ -2528,7 +2552,7 @@ type internal TypeCheckInfo
 
                 match declItemsOpt with
                 | None -> None
-                | Some(items: CompletionItem list, _, _, _) ->
+                | Some(items: CompletionItem list, _, _) ->
                     match items with
                     | [] -> None
                     | [ item ] -> GetF1Keyword g item.Item
@@ -2575,7 +2599,7 @@ type internal TypeCheckInfo
 
                 match declItemsOpt with
                 | None -> MethodGroup("", [||])
-                | Some(items, denv, _, m) ->
+                | Some(items, _, _) ->
                     // GetDeclItemsForNamesAtPosition returns Items.Types and Item.CtorGroup for `new T(|)`,
                     // the Item.Types is not needed here as it duplicates (at best) parameterless ctor.
                     let ctors =
@@ -2589,6 +2613,17 @@ type internal TypeCheckInfo
                         match ctors with
                         | [] -> items
                         | ctors -> ctors
+
+                    let loc =
+                        match colAtEndOfNames with
+                        | pastEndOfLine when pastEndOfLine >= lineStr.Length -> lineStr.Length
+                        | atDot when lineStr[atDot] = '.' -> atDot + 1
+                        | atStart when atStart = 0 -> 0
+                        | otherwise -> otherwise - 1
+
+                    let pos = mkPos line loc
+                    let (nenv, _), m = GetBestEnvForPos pos
+                    let denv = nenv.DisplayEnv
 
                     MethodGroup.Create(infoReader, tcAccessRights, m, denv, items |> List.map (fun x -> x.ItemWithInst)))
             (fun msg ->
@@ -2615,10 +2650,21 @@ type internal TypeCheckInfo
                         FSharpCodeCompletionOptions.Default
                     )
 
+                let loc =
+                    match colAtEndOfNames with
+                    | pastEndOfLine when pastEndOfLine >= lineStr.Length -> lineStr.Length
+                    | atDot when lineStr[atDot] = '.' -> atDot + 1
+                    | atStart when atStart = 0 -> 0
+                    | otherwise -> otherwise - 1
+
+                let pos = mkPos line loc
+                let (nenv, _), _ = GetBestEnvForPos pos
+                let denv = nenv.DisplayEnv
+
                 match declItemsOpt with
                 | None
-                | Some([], _, _, _) -> None
-                | Some(items, denv, _, m) ->
+                | Some([], _, _) -> None
+                | Some(items, _, m) ->
                     let allItems =
                         items
                         |> List.collect (fun item -> SelectMethodGroupItems2 g m item.ItemWithInst)
@@ -2654,8 +2700,8 @@ type internal TypeCheckInfo
 
                 match declItemsOpt with
                 | None
-                | Some([], _, _, _) -> FindDeclResult.DeclNotFound(FindDeclFailureReason.Unknown "")
-                | Some(item :: _, _, _, _) ->
+                | Some([], _, _) -> FindDeclResult.DeclNotFound(FindDeclFailureReason.Unknown "")
+                | Some(item :: _, _, _) ->
                     let getTypeVarNames (ilinfo: ILMethInfo) =
                         let classTypeParams =
                             ilinfo.DeclaringTyconRef.ILTyconRawMetadata.GenericParams
@@ -2801,10 +2847,21 @@ type internal TypeCheckInfo
                         FSharpCodeCompletionOptions.Default
                     )
 
+                let loc =
+                    match colAtEndOfNames with
+                    | pastEndOfLine when pastEndOfLine >= lineStr.Length -> lineStr.Length
+                    | atDot when lineStr[atDot] = '.' -> atDot + 1
+                    | atStart when atStart = 0 -> 0
+                    | otherwise -> otherwise - 1
+
+                let pos = mkPos line loc
+                let (nenv, _), _ = GetBestEnvForPos pos
+                let denv = nenv.DisplayEnv
+
                 match declItemsOpt with
                 | None
-                | Some([], _, _, _) -> None
-                | Some(item :: _, denv, _, m) ->
+                | Some([], _, _) -> None
+                | Some(item :: _, _, m) ->
                     let symbol = FSharpSymbol.Create(cenv, item.Item)
                     Some(symbol, item.ItemWithInst, denv, m))
             (fun msg ->
@@ -2831,9 +2888,20 @@ type internal TypeCheckInfo
                         FSharpCodeCompletionOptions.Default
                     )
 
+                let loc =
+                    match colAtEndOfNames with
+                    | pastEndOfLine when pastEndOfLine >= lineStr.Length -> lineStr.Length
+                    | atDot when lineStr[atDot] = '.' -> atDot + 1
+                    | atStart when atStart = 0 -> 0
+                    | otherwise -> otherwise - 1
+
+                let pos = mkPos line loc
+                let (nenv, _), _ = GetBestEnvForPos pos
+                let denv = nenv.DisplayEnv
+
                 match declItemsOpt with
                 | None -> List.empty
-                | Some(items, denv, _, m) ->
+                | Some(items, _, m) ->
                     items
                     |> List.map (fun item ->
                         let symbol = FSharpSymbol.Create(cenv, item.Item)
@@ -3558,17 +3626,17 @@ type FSharpCheckFileResults
         | None -> List.empty
         | Some(scope, _builderOpt) ->
             scope.GetSymbolUsesAtLocation(line, lineText, colAtEndOfNames, names)
-            |> List.map (fun (sym, itemWithInst, denv, m) ->
-                FSharpSymbolUse(denv, sym, itemWithInst.TyparInstantiation, ItemOccurrence.Use, m))
+            |> List.map (fun (sym, itemWithInst, _, m) ->
+                FSharpSymbolUse(sym, itemWithInst.TyparInstantiation, ItemOccurrence.Use, m))
 
     member _.GetMethodsAsSymbols(line, colAtEndOfNames, lineText, names) =
         match details with
         | None -> None
         | Some(scope, _builderOpt) ->
             scope.GetMethodsAsSymbols(line, lineText, colAtEndOfNames, names)
-            |> Option.map (fun (symbols, denv, m) ->
+            |> Option.map (fun (symbols, _, m) ->
                 symbols
-                |> List.map (fun (sym, itemWithInst) -> FSharpSymbolUse(denv, sym, itemWithInst.TyparInstantiation, ItemOccurrence.Use, m)))
+                |> List.map (fun (sym, itemWithInst) -> FSharpSymbolUse(sym, itemWithInst.TyparInstantiation, ItemOccurrence.Use, m)))
 
     member _.GetSymbolAtLocation(line, colAtEndOfNames, lineStr, names) =
         match details with
@@ -3630,7 +3698,7 @@ type FSharpCheckFileResults
                         if symbolUse.ItemOccurrence <> ItemOccurrence.RelatedText then
                             let symbol = FSharpSymbol.Create(cenv, symbolUse.ItemWithInst.Item)
                             let inst = symbolUse.ItemWithInst.TyparInstantiation
-                            FSharpSymbolUse(symbolUse.DisplayEnv, symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range)
+                            FSharpSymbolUse(symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range)
             }
 
     member _.GetUsesOfSymbolInFile(symbol: FSharpSymbol, ?relatedSymbolKinds: RelatedSymbolUseKind, ?cancellationToken: CancellationToken) =
@@ -3645,7 +3713,7 @@ type FSharpCheckFileResults
 
                     if symbolUse.ItemOccurrence <> ItemOccurrence.RelatedText then
                         let inst = symbolUse.ItemWithInst.TyparInstantiation
-                        FSharpSymbolUse(symbolUse.DisplayEnv, symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range)
+                        FSharpSymbolUse(symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range)
             |]
 
     member _.GetVisibleNamespacesAndModulesAtPoint(pos: pos) =
@@ -3995,7 +4063,7 @@ type FSharpCheckProjectResults
         |> Seq.map (fun symbolUse ->
             cancellationToken |> Option.iter (fun ct -> ct.ThrowIfCancellationRequested())
             let inst = symbolUse.ItemWithInst.TyparInstantiation
-            FSharpSymbolUse(symbolUse.DisplayEnv, symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range))
+            FSharpSymbolUse(symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range))
         |> Seq.toArray
 
     // Not, this does not have to be a SyncOp, it can be called from any thread
@@ -4030,7 +4098,7 @@ type FSharpCheckProjectResults
                         if symbolUse.ItemOccurrence <> ItemOccurrence.RelatedText then
                             let symbol = FSharpSymbol.Create(cenv, symbolUse.ItemWithInst.Item)
                             let inst = symbolUse.ItemWithInst.TyparInstantiation
-                            FSharpSymbolUse(symbolUse.DisplayEnv, symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range)
+                            FSharpSymbolUse(symbol, inst, symbolUse.ItemOccurrence, symbolUse.Range)
         |]
 
     member _.ProjectContext =

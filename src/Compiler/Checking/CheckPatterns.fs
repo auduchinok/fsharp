@@ -256,7 +256,7 @@ and TcPatBindingName cenv env id ty isMemberThis vis1 valReprInfo (vFlags: TcPat
         // For non-left-most paths, we register the name resolutions here as Use, not Binding (#5546)
         if not isLeftMost && not vspec.IsCompilerGenerated && not (vspec.LogicalName.StartsWithOrdinal("_")) then
             let item = Item.Value(mkLocalValRef vspec)
-            CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.AccessRights)
+            CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.Use)
 
         PatternValBinding(vspec, typeScheme)
 
@@ -606,7 +606,7 @@ and TcPatLongIdent warnOnUpper cenv env ad valReprInfo vFlags (patEnv: TcPatLine
         TcPatLongIdentActivePatternCase warnOnUpper cenv env vFlags patEnv ty (mLongId, item, apref, args, m)
 
     | Item.UnionCase _ | Item.ExnCase _ as item ->
-        TcPatLongIdentUnionCaseOrExnCase warnOnUpper cenv env ad vFlags patEnv ty (mLongId, item, args, m)
+        TcPatLongIdentUnionCaseOrExnCase warnOnUpper cenv env vFlags patEnv ty (mLongId, item, args, m)
 
     | Item.ILField finfo ->
         TcPatLongIdentILField warnOnUpper cenv env vFlags patEnv ty (mLongId, finfo, args, m)
@@ -633,7 +633,7 @@ and TcPatLongIdentNewDef warnOnUpperForId warnOnUpper (cenv: cenv) env ad valRep
         match TcNameOfExpr cenv env tpenv (ConvSynPatToSynExpr arg) with
         | Expr.Const(Const.String s, m, _) ->
             // Record the resolution of the `nameof` usage so that we can classify it correctly later.
-            CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, Item.Value g.nameof_vref, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+            CallNameResolutionSink cenv.tcSink (id.idRange, Item.Value g.nameof_vref, emptyTyparInst, ItemOccurrence.Use)
             TcConstPat warnOnUpper cenv env vFlags patEnv ty (SynConst.String(s, SynStringKind.Regular, m)) m
         | _ -> failwith "Impossible: TcNameOfExpr must return an Expr.Const of type string"
 
@@ -679,11 +679,11 @@ and ApplyUnionCaseOrExn m (cenv: cenv) env overallTy item =
         invalidArg "item" "not a union case or exception reference"
 
 /// Check a long identifier 'Case' or 'Case argsR that has been resolved to a union case or F# exception constructor
-and TcPatLongIdentUnionCaseOrExnCase warnOnUpper cenv env ad vFlags patEnv ty (mLongId, item, args, m) =
+and TcPatLongIdentUnionCaseOrExnCase warnOnUpper cenv env vFlags patEnv ty (mLongId, item, args, m) =
     let g = cenv.g
 
     // Report information about the case occurrence to IDE
-    CallNameResolutionSink cenv.tcSink (mLongId, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Pattern, env.eAccessRights)
+    CallNameResolutionSink cenv.tcSink (mLongId, item, emptyTyparInst, ItemOccurrence.Pattern)
     CallExprHasTypeSinkSynthetic cenv.tcSink (m, env.NameEnv, ty, env.AccessRights)
 
     let mkf, argTys, argNames = ApplyUnionCaseOrExn m cenv env ty item
@@ -737,7 +737,7 @@ and TcPatLongIdentUnionCaseOrExnCase warnOnUpper cenv env ad vFlags patEnv ty (m
                         | Item.ExnCase tref -> Item.RecdField (RecdFieldInfo ([], RecdFieldRef (tref, id.idText)))
                         | _ -> failwithf "Expecting union case or exception item, got: %O" item
 
-                    CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, argItem, emptyTyparInst, ItemOccurrence.Pattern, ad)
+                    CallNameResolutionSink cenv.tcSink (id.idRange, argItem, emptyTyparInst, ItemOccurrence.Pattern)
 
                     match box result[idx] with
                     | null -> result[idx] <- pat
@@ -833,7 +833,7 @@ and TcPatLongIdentILField warnOnUpper (cenv: cenv) env vFlags patEnv ty (mLongId
         UnifyTypes cenv env m ty (finfo.FieldType (cenv.amap, m))
         let c' = TcFieldInit mLongId lit
         let item = Item.ILField finfo
-        CallNameResolutionSink cenv.tcSink (mLongId, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Pattern, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (mLongId, item, emptyTyparInst, ItemOccurrence.Pattern)
         (fun _ -> TPat_const (c', m)), acc
 
 /// Check a long identifier that has been resolved to a record field
@@ -853,7 +853,7 @@ and TcPatLongIdentRecdField warnOnUpper cenv env vFlags patEnv ty (mLongId, rfin
         let item = Item.RecdField rfinfo
         // FUTURE: can we do better than emptyTyparInst here, in order to display instantiations
         // of type variables in the quick info provided in the IDE.
-        CallNameResolutionSink cenv.tcSink (mLongId, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Pattern, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (mLongId, item, emptyTyparInst, ItemOccurrence.Pattern)
         (fun _ -> TPat_const (lit, m)), acc
 
 /// Check a long identifier that has been resolved to an F# value that is a literal
@@ -872,7 +872,7 @@ and TcPatLongIdentLiteral warnOnUpper (cenv: cenv) env vFlags patEnv ty (mLongId
 
         UnifyTypes cenv env m ty vexpty
         let item = Item.Value vref
-        CallNameResolutionSink cenv.tcSink (mLongId, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Pattern, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (mLongId, item, emptyTyparInst, ItemOccurrence.Pattern)
         (fun _ -> TPat_const (lit, m)), acc
 
 and TcPatterns warnOnUpper cenv env vFlags s argTys args =

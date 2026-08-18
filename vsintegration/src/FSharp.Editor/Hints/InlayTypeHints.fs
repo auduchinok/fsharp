@@ -10,11 +10,14 @@ open FSharp.Compiler.Text.Position
 open Hints
 open CancellableTasks
 
-type InlayTypeHints(parseResults: FSharpParseFileResults, symbol: FSharpMemberOrFunctionOrValue) =
+type InlayTypeHints(parseResults: FSharpParseFileResults, checkResults: FSharpCheckFileResults, symbol: FSharpMemberOrFunctionOrValue) =
 
     let getHintParts (symbol: FSharpMemberOrFunctionOrValue) (symbolUse: FSharpSymbolUse) =
+        let displayContext =
+            checkResults.GetDisplayContextForPos symbolUse.Range.End
+            |> Option.defaultValue FSharpDisplayContext.Empty
 
-        match symbol.GetReturnTypeRichText symbolUse.DisplayContext with
+        match symbol.GetReturnTypeRichText displayContext with
         | Some typeInfo ->
             let colon = TaggedText(TextTag.Text, ": ")
             colon :: (typeInfo.Parts |> Array.toList)

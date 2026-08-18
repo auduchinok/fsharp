@@ -36,7 +36,7 @@ type internal AddReturnType [<ImportingConstructor>] () =
 
     static member refactor
         (context: CodeRefactoringContext)
-        (memberFunc: FSharpMemberOrFunctionOrValue, typeRange: Range, symbolUse: FSharpSymbolUse)
+        (memberFunc: FSharpMemberOrFunctionOrValue, typeRange: Range, displayContext: FSharpDisplayContext)
         =
         let title = SR.AddReturnTypeAnnotation()
 
@@ -44,7 +44,7 @@ type internal AddReturnType [<ImportingConstructor>] () =
             let returnType = memberFunc.ReturnParameter.Type
 
             let inferredType =
-                let res = returnType.Format symbolUse.DisplayContext
+                let res = returnType.Format displayContext
 
                 if returnType.HasTypeDefinition then
                     res
@@ -109,9 +109,10 @@ type internal AddReturnType [<ImportingConstructor>] () =
                         memberFunc
                         |> AddReturnType.isValidMethodWithoutTypeAnnotation symbolUse parseFileResults
 
-                    match isValidMethod with
-                    | Some(memberFunc, typeRange) -> do AddReturnType.refactor context (memberFunc, typeRange, symbolUse)
-                    | None -> ()
+                    match isValidMethod, checkFileResults.GetDisplayContextForPos symbolUse.Range.End with
+                    | Some(memberFunc, typeRange), Some displayContext ->
+                        do AddReturnType.refactor context (memberFunc, typeRange, displayContext)
+                    | _ -> ()
                 | _ -> ()
 
                 return ()

@@ -68,7 +68,7 @@ type SemanticClassificationItem =
 [<AutoOpen>]
 module TcResolutionsExtensions =
     let (|CNR|) (cnr: CapturedNameResolution) =
-        (cnr.Item, cnr.ItemOccurrence, cnr.DisplayEnv, cnr.NameResolutionEnv, cnr.AccessorDomain, cnr.Range)
+        (cnr.Item, cnr.ItemOccurrence, cnr.Range)
 
     let isDisposableTy g amap (ty: TType) =
         not (typeEquiv g ty g.system_IDisposable_ty)

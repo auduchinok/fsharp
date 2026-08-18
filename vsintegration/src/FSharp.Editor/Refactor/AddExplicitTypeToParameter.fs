@@ -71,7 +71,8 @@ type internal FSharpAddExplicitTypeToParameterRefactoring [<ImportingConstructor
 
             match symbolUse.Symbol with
             | :? FSharpMemberOrFunctionOrValue as v when isValidParameterWithoutTypeAnnotation v symbolUse ->
-                let typeString = v.FullType.FormatWithConstraints symbolUse.DisplayContext
+                let! displayContext = checkFileResults.GetDisplayContextForPos symbolUse.Range.End
+                let typeString = v.FullType.FormatWithConstraints displayContext
                 let title = SR.AddTypeAnnotation()
 
                 let! symbolSpan = RoslynHelpers.TryFSharpRangeToTextSpan(sourceText, symbolUse.Range)

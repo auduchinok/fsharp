@@ -17,14 +17,16 @@ module HintService =
     let semanticClassificationCache =
         new DocumentCache<NativeHint list>("fsharp-hints-cache")
 
-    let private getHints sourceText parseResults hintKinds symbolUses (symbol: FSharpSymbol) =
+    let private getHints sourceText parseResults checkResults hintKinds symbolUses (symbol: FSharpSymbol) =
 
         let getHintsPerKind hintKind =
             match hintKind, symbol with
             | HintKind.TypeHint, (:? FSharpMemberOrFunctionOrValue as symbol) ->
-                symbolUses |> Seq.collect (InlayTypeHints(parseResults, symbol)).GetHints
+                symbolUses
+                |> Seq.collect (InlayTypeHints(parseResults, checkResults, symbol)).GetHints
             | HintKind.ReturnTypeHint, (:? FSharpMemberOrFunctionOrValue as symbol) ->
-                symbolUses |> Seq.collect (InlayReturnTypeHints(parseResults, symbol).GetHints)
+                symbolUses
+                |> Seq.collect (InlayReturnTypeHints(parseResults, checkResults, symbol).GetHints)
             | HintKind.ParameterNameHint, (:? FSharpMemberOrFunctionOrValue as symbol) ->
                 symbolUses
                 |> Seq.collect (InlayParameterNameHints(parseResults).GetHintsForMemberOrFunctionOrValue sourceText symbol)
@@ -35,8 +37,10 @@ module HintService =
 
         hintKinds |> Set.toList |> List.map getHintsPerKind
 
-    let private getHintsForSymbol (sourceText: SourceText) parseResults hintKinds (symbol, symbolUses) =
-        let hints = getHints sourceText parseResults hintKinds symbolUses symbol
+    let private getHintsForSymbol (sourceText: SourceText) parseResults checkResults hintKinds (symbol, symbolUses) =
+        let hints =
+            getHints sourceText parseResults checkResults hintKinds symbolUses symbol
+
         Seq.concat hints
 
     let getHintsForDocument (sourceText: SourceText) (document: Document) hintKinds (textSpan: TextSpan) userOpName =
@@ -68,7 +72,7 @@ module HintService =
                     let nativeHints =
                         checkResults.GetAllUsesOfAllSymbolsInFile cancellationToken
                         |> Seq.groupBy (fun symbolUse -> symbolUse.Symbol)
-                        |> Seq.collect (getHintsForSymbol sourceText parseResults hintKinds)
+                        |> Seq.collect (getHintsForSymbol sourceText parseResults checkResults hintKinds)
                         |> Seq.toList
 
                     do! semanticClassificationCache.SetAsync(document, nativeHints)

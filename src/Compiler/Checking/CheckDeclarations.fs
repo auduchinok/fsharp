@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All Rights Reserved. See License.txt in the project root for license information.
+﻿// Copyright (c) Microsoft Corporation. All Rights Reserved. See License.txt in the project root for license information.
 
 module internal FSharp.Compiler.CheckDeclarations
 
@@ -288,7 +288,7 @@ let AddModuleAbbreviationAndReport tcSink scopem id modrefs env =
 
     CallEnvSink tcSink (scopem, env.NameEnv, env.eAccessRights)
     let item = Item.ModuleOrNamespaces modrefs
-    CallNameResolutionSink tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.AccessRights)
+    CallNameResolutionSink tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.Use)
     env
 
 /// Adjust the TcEnv to account for opening the set of modules or namespaces implied by an `open` declaration
@@ -565,7 +565,7 @@ module TcRecdUnionAndEnumDeclarations =
                         match idOpt, parent with
                         | Some fieldId, Parent tcref ->
                             let item = Item.UnionCaseField (UnionCaseInfo (thisTyInst, UnionCaseRef (tcref, id.idText)), i)
-                            CallNameResolutionSink cenv.tcSink (fieldId.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights)
+                            CallNameResolutionSink cenv.tcSink (fieldId.idRange, item, emptyTyparInst, ItemOccurrence.Binding)
                             TcNamedFieldDecl cenv env parent false tpenv fieldFixups.Add fld
                         | _ ->
                             Some(TcAnonFieldDecl cenv env parent tpenv fieldFixups.Add (mkUnionCaseFieldName nFields i) fld)
@@ -1241,7 +1241,7 @@ module MutRecBindingChecking =
                                         [ PropInfo.FSProp(g, apparentEnclosingType, Some (mkLocalValRef vGet), Some (mkLocalValRef vSet)) ],
                                         Some getIdent.idRange
                                     )
-                                CallNameResolutionSink cenv.tcSink (getIdent.idRange, envForTycon.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, envForTycon.eAccessRights)
+                                CallNameResolutionSink cenv.tcSink (getIdent.idRange, item, emptyTyparInst, ItemOccurrence.Binding)
                         | _ -> ()
 
                 // If no constructor call, insert Phase2AIncrClassCtorJustAfterSuperInit at start
@@ -2483,7 +2483,7 @@ module TcExceptionDeclarations =
                     let tcref = mkLocalTyconRef exnc
                     let thisTypInst, _ = generalizeTyconRef g tcref
                     let item = Item.RecdField (RecdFieldInfo (thisTypInst, RecdFieldRef (tcref, fieldId.idText)))
-                    CallNameResolutionSink cenv.tcSink (fieldId.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights)
+                    CallNameResolutionSink cenv.tcSink (fieldId.idRange, item, emptyTyparInst, ItemOccurrence.Binding)
                 | _ -> ()
 
                 TcRecdUnionAndEnumDeclarations.TcAnonFieldDecl cenv env parent emptyUnscopedTyparEnv (fun f -> f ()) (mkExceptionFieldName i) fdef)
@@ -2526,7 +2526,7 @@ module TcExceptionDeclarations =
         exnc.SetExceptionInfo repr 
 
         let item = Item.ExnCase(mkLocalTyconRef exnc)
-        CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.Binding)
         args'
 
     let private TcExnDefnCore (cenv: cenv) env parent synExnDefnRepr =
@@ -3633,21 +3633,19 @@ module EstablishTypeDefinitionCores =
             // Notify the Language Service about field names in record/class declaration
             let ad = envinner.AccessRights
             let writeFakeRecordFieldsToSink (fields: RecdField list) =
-                let nenv = envinner.NameEnv
                 // Record fields should be visible from IntelliSense, so add fake names for them (similarly to "let a = ..")
                 for fspec in fields do
                     if not fspec.IsCompilerGenerated then
                         let item = Item.RecdField(FreshenRecdFieldRef cenv.nameResolver m (thisTyconRef.MakeNestedRecdFieldRef fspec))
-                        CallNameResolutionSink cenv.tcSink (fspec.Range, nenv, item, emptyTyparInst, ItemOccurrence.Binding, ad)
+                        CallNameResolutionSink cenv.tcSink (fspec.Range, item, emptyTyparInst, ItemOccurrence.Binding)
 
             // Notify the Language Service about constructors in discriminated union declaration
             let writeFakeUnionCtorsToSink (unionCases: UnionCase list) = 
-                let nenv = envinner.NameEnv
                 // Constructors should be visible from IntelliSense, so add fake names for them 
                 for unionCase in unionCases do
                     let info = UnionCaseInfo(thisTyInst, mkUnionCaseRef thisTyconRef unionCase.Id.idText)
                     let item = Item.UnionCase(info, false)
-                    CallNameResolutionSink cenv.tcSink (unionCase.Range, nenv, item, emptyTyparInst, ItemOccurrence.Binding, ad)
+                    CallNameResolutionSink cenv.tcSink (unionCase.Range, item, emptyTyparInst, ItemOccurrence.Binding)
             
             let (typeRepr, baseValOpt, safeInitInfo), recheck = 
                 match synTyconRepr with 
@@ -5359,7 +5357,7 @@ let rec TcSignatureElementNonMutRec (cenv: cenv) parent typeNames endm (env: TcE
             modulNSs |> List.iter (fun moduleEntity ->
                 let modref = mkLocalModuleRef moduleEntity
                 let item = Item.ModuleOrNamespaces [modref]
-                CallNameResolutionSink cenv.tcSink (moduleEntity.Range, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights))
+                CallNameResolutionSink cenv.tcSink (moduleEntity.Range, item, emptyTyparInst, ItemOccurrence.Binding))
 
             // For 'namespace rec' and 'module rec' we add the thing being defined 
             let envNS = if isRec then AddLocalRootModuleOrNamespace g cenv.amap m envNS modTyRoot else envNS
@@ -5822,7 +5820,7 @@ let rec TcModuleOrNamespaceElementNonMutRec (cenv: cenv) parent typeNames scopem
           modulNSs |> List.iter (fun moduleEntity ->
             let modref = mkLocalModuleRef moduleEntity
             let item = Item.ModuleOrNamespaces [modref]
-            CallNameResolutionSink cenv.tcSink (moduleEntity.Range, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights))
+            CallNameResolutionSink cenv.tcSink (moduleEntity.Range, item, emptyTyparInst, ItemOccurrence.Binding))
 
           // For 'namespace rec' and 'module rec' we add the thing being defined 
           let envNS = if isRec then AddLocalRootModuleOrNamespace g cenv.amap m envNS modTyRoot else envNS
@@ -6210,7 +6208,7 @@ let CheckOneImplFile
         conditionallySuppressErrorReporting (checkForErrors()) (fun () ->
             try
                 implFileTypePriorToSig |> IterTyconsOfModuleOrNamespaceType (fun tycon ->
-                    FinalTypeDefinitionChecksAtEndOfInferenceScope (cenv.infoReader, envAtEnd.NameEnv, cenv.tcSink, true, denvAtEnd, tycon))
+                    FinalTypeDefinitionChecksAtEndOfInferenceScope (cenv.infoReader, cenv.tcSink, true, denvAtEnd, tycon))
 
             with RecoverableException exn ->
                 errorRecovery exn m)
@@ -6321,7 +6319,7 @@ let CheckOneSigFile (g, amap, thisCcu, checkForErrors, conditionalDefines, tcSin
     if not (checkForErrors()) then  
         try
             sigFileType |> IterTyconsOfModuleOrNamespaceType (fun tycon ->
-                FinalTypeDefinitionChecksAtEndOfInferenceScope(cenv.infoReader, tcEnv.NameEnv, cenv.tcSink, false, tcEnv.DisplayEnv, tycon))
+                FinalTypeDefinitionChecksAtEndOfInferenceScope(cenv.infoReader, cenv.tcSink, false, tcEnv.DisplayEnv, tycon))
         with RecoverableException exn -> errorRecovery exn sigFile.QualifiedName.Range
 
     UpdatePrettyTyparNames.updateModuleOrNamespaceType sigFileType

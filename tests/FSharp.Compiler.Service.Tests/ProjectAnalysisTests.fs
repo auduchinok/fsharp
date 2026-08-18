@@ -1594,7 +1594,8 @@ let ``Test complete active patterns' exact ranges from uses of symbols`` () =
     let oddGroup = oddActivePatternCase.Group
     oddGroup.IsTotal |> shouldEqual true
     oddGroup.Names |> Seq.toList |> shouldEqual ["Even"; "Odd"]
-    oddGroup.OverallType.Format(oddSymbolUse.Value.DisplayContext) |> shouldEqual "int -> Choice<unit,unit>"
+    let oddDisplayContext = backgroundTypedParse1.GetDisplayContextForPos(oddSymbolUse.Value.Range.End).Value
+    oddGroup.OverallType.Format(oddDisplayContext) |> shouldEqual "int -> Choice<unit,unit>"
     let oddEntity = oddGroup.DeclaringEntity.Value
     oddEntity.ToString() |> shouldEqual "ActivePatterns"
 
@@ -1612,7 +1613,8 @@ let ``Test complete active patterns' exact ranges from uses of symbols`` () =
     let evenGroup = evenActivePatternCase.Group
     evenGroup.IsTotal |> shouldEqual true
     evenGroup.Names |> Seq.toList |> shouldEqual ["Even"; "Odd"]
-    evenGroup.OverallType.Format(evenSymbolUse.Value.DisplayContext) |> shouldEqual "int -> Choice<unit,unit>"
+    let evenDisplayContext = backgroundTypedParse1.GetDisplayContextForPos(evenSymbolUse.Value.Range.End).Value
+    evenGroup.OverallType.Format(evenDisplayContext) |> shouldEqual "int -> Choice<unit,unit>"
     let evenEntity = evenGroup.DeclaringEntity.Value
     evenEntity.ToString() |> shouldEqual "ActivePatterns"
 
@@ -1660,7 +1662,8 @@ let ``Test partial active patterns' exact ranges from uses of symbols`` () =
     let floatGroup = floatActivePatternCase.Group
     floatGroup.IsTotal |> shouldEqual false
     floatGroup.Names |> Seq.toList |> shouldEqual ["Float"]
-    floatGroup.OverallType.Format(floatSymbolUse.Value.DisplayContext) |> shouldEqual "string -> float option"
+    let floatDisplayContext = backgroundTypedParse1.GetDisplayContextForPos(floatSymbolUse.Value.Range.End).Value
+    floatGroup.OverallType.Format(floatDisplayContext) |> shouldEqual "string -> float option"
     let evenEntity = floatGroup.DeclaringEntity.Value
     evenEntity.ToString() |> shouldEqual "ActivePatterns"
 
@@ -2238,6 +2241,7 @@ let ``Test Project13 all symbols`` () =
     set objMemberNames |> shouldEqual (set ["``.ctor``"; "ToString"; "Equals"; "Equals"; "ReferenceEquals"; "GetHashCode"; "GetType"; "Finalize"; "MemberwiseClone"])
 
     let dtSymbol = wholeProjectResults.GetAllUsesOfAllSymbols() |> Array.find (fun su -> su.Symbol.DisplayName = "DateTime")
+    let dtDisplayContext = getDisplayContextForSymbolUse Project13.options dtSymbol
     let dtEntity = dtSymbol.Symbol :?> FSharpEntity
     let dtPropNames = [ for x in dtEntity.MembersFunctionsAndValues do if x.IsProperty then yield x.DisplayName ]
 
@@ -2275,7 +2279,7 @@ let ``Test Project13 all symbols`` () =
         [ for x in objEntity.MembersFunctionsAndValues do
              for pg in x.CurriedParameterGroups do
                  for p in pg do
-                     yield x.CompiledName, p.Name,  p.Type.ToString(), p.Type.Format(dtSymbol.DisplayContext) ]
+                     yield x.CompiledName, p.Name,  p.Type.ToString(), p.Type.Format(dtDisplayContext) ]
 
     objMethodsCurriedParameterGroups |> shouldEqual
           [("Equals", Some "obj", "type Microsoft.FSharp.Core.obj", "obj");
@@ -2288,7 +2292,7 @@ let ``Test Project13 all symbols`` () =
     let objMethodsReturnParameter =
         [ for x in objEntity.MembersFunctionsAndValues do
              let p = x.ReturnParameter
-             yield x.DisplayName, p.Name,  p.Type.ToString(), p.Type.Format(dtSymbol.DisplayContext) ]
+             yield x.DisplayName, p.Name,  p.Type.ToString(), p.Type.Format(dtDisplayContext) ]
     set objMethodsReturnParameter |> shouldEqual
        (set
            [("``.ctor``", None, "type Microsoft.FSharp.Core.unit", "unit");
@@ -2307,7 +2311,7 @@ let ``Test Project13 all symbols`` () =
            if x.CompiledName = "FromFileTime" || x.CompiledName = "AddMilliseconds"  then
              for pg in x.CurriedParameterGroups do
                  for p in pg do
-                     yield x.CompiledName, p.Name,  p.Type.ToString(), p.Type.Format(dtSymbol.DisplayContext) ]
+                     yield x.CompiledName, p.Name,  p.Type.ToString(), p.Type.Format(dtDisplayContext) ]
 
     dtMethodsCurriedParameterGroups |> shouldEqual
           [("AddMilliseconds", Some "value", "type Microsoft.FSharp.Core.float","float");
@@ -4188,13 +4192,14 @@ let ``Test project29 event symbols`` () =
     let wholeProjectResults = checker.ParseAndCheckProject(Project29.options) |> Async.RunSynchronouslyImmediate
 
     let objSymbol = wholeProjectResults.GetAllUsesOfAllSymbols()  |> Array.find (fun su -> su.Symbol.DisplayName = "INotifyPropertyChanged")
+    let objDisplayContext = getDisplayContextForSymbolUse Project29.options objSymbol
     let objEntity = objSymbol.Symbol :?> FSharpEntity
 
     let objMethodsCurriedParameterGroups =
         [ for x in objEntity.MembersFunctionsAndValues do
              for pg in x.CurriedParameterGroups do
                  for p in pg do
-                     yield x.CompiledName, p.Name,  p.Type.Format(objSymbol.DisplayContext) ]
+                     yield x.CompiledName, p.Name,  p.Type.Format(objDisplayContext) ]
 
     objMethodsCurriedParameterGroups |> shouldEqual
           [("add_PropertyChanged", Some "value", "PropertyChangedEventHandler");
@@ -4204,7 +4209,7 @@ let ``Test project29 event symbols`` () =
     let objMethodsReturnParameter =
         [ for x in objEntity.MembersFunctionsAndValues do
              let p = x.ReturnParameter
-             yield x.DisplayName, p.Name, p.Type.Format(objSymbol.DisplayContext) ]
+             yield x.DisplayName, p.Name, p.Type.Format(objDisplayContext) ]
     set objMethodsReturnParameter |> shouldEqual
        (set
            [("PropertyChanged", None, "IEvent<PropertyChangedEventHandler,PropertyChangedEventArgs>");
@@ -4245,11 +4250,12 @@ let ``Test project30 Format attributes`` () =
     let wholeProjectResults = checker.ParseAndCheckProject(Project30.options) |> Async.RunSynchronouslyImmediate
 
     let moduleSymbol = wholeProjectResults.GetAllUsesOfAllSymbols()  |> Array.find (fun su -> su.Symbol.DisplayName = "Module")
+    let moduleDisplayContext = getDisplayContextForSymbolUse Project30.options moduleSymbol
     let moduleEntity = moduleSymbol.Symbol :?> FSharpEntity
 
     let moduleAttributes =
         [ for x in moduleEntity.Attributes do
-             yield x.Format(moduleSymbol.DisplayContext), x.Format(FSharpDisplayContext.Empty) ]
+             yield x.Format(moduleDisplayContext), x.Format(FSharpDisplayContext.Empty) ]
 
     moduleAttributes
     |> set
@@ -4259,11 +4265,12 @@ let ``Test project30 Format attributes`` () =
               "[<Microsoft.FSharp.Core.CompilationRepresentation (enum<Microsoft.FSharp.Core.CompilationRepresentationFlags> (4))>]")])
 
     let memberSymbol = wholeProjectResults.GetAllUsesOfAllSymbols()  |> Array.find (fun su -> su.Symbol.DisplayName = "Member")
+    let memberDisplayContext = getDisplayContextForSymbolUse Project30.options memberSymbol
     let memberEntity = memberSymbol.Symbol :?> FSharpMemberOrFunctionOrValue
 
     let memberAttributes =
         [ for x in memberEntity.Attributes do
-             yield x.Format(memberSymbol.DisplayContext), x.Format(FSharpDisplayContext.Empty) ]
+             yield x.Format(memberDisplayContext), x.Format(FSharpDisplayContext.Empty) ]
 
     memberAttributes
     |> set
@@ -4365,7 +4372,9 @@ let ``Test project31 Format C# type attributes`` () =
         let objEntity = objSymbol.Symbol :?> FSharpEntity
         let attributes = objEntity.Attributes |> Seq.filter (fun attrib -> attrib.AttributeType.DisplayName <> "__DynamicallyInvokableAttribute")
 
-        [ for attrib in attributes -> attrib.Format(objSymbol.DisplayContext) ]
+        let objDisplayContext = getDisplayContextForSymbolUse Project31.options objSymbol
+
+        [ for attrib in attributes -> attrib.Format(objDisplayContext) ]
         |> set
         |> shouldEqual
              (set ["[<DebuggerTypeProxyAttribute (typeof<Mscorlib_CollectionDebugView<>>)>]";
@@ -4381,9 +4390,11 @@ let ``Test project31 Format C# method attributes`` () =
         let objSymbol = wholeProjectResults.GetAllUsesOfAllSymbols()  |> Array.find (fun su -> su.Symbol.DisplayName = "Console")
         let objEntity = objSymbol.Symbol :?> FSharpEntity
 
+        let objDisplayContext = getDisplayContextForSymbolUse Project31.options objSymbol
+
         let objMethodsAttributes =
             [ for x in objEntity.MembersFunctionsAndValues do
-                 for attrib in x.Attributes -> attrib.Format(objSymbol.DisplayContext) ]
+                 for attrib in x.Attributes -> attrib.Format(objDisplayContext) ]
 
         objMethodsAttributes
         |> set
@@ -5124,10 +5135,11 @@ let ``Test project39 all symbols`` () =
             match s.Symbol with
             | :? FSharpMemberOrFunctionOrValue as mem ->
               if s.Symbol.DisplayName.Contains "Incomplete" then
+                let displayContext = getDisplayContextForSymbolUse Project39.options s
                 yield s.Symbol.DisplayName, tups s.Range,
-                      ("full", mem.FullType |> FSharpType.Prettify |> fun p -> p.Format(s.DisplayContext)),
-                      ("params", mem.CurriedParameterGroups |> FSharpType.Prettify |> Seq.toList |> List.map (Seq.toList >> List.map (fun p -> p.Type.Format(s.DisplayContext)))),
-                      ("return", mem.ReturnParameter |> FSharpType.Prettify |> fun p -> p.Type.Format(s.DisplayContext))
+                      ("full", mem.FullType |> FSharpType.Prettify |> fun p -> p.Format(displayContext)),
+                      ("params", mem.CurriedParameterGroups |> FSharpType.Prettify |> Seq.toList |> List.map (Seq.toList >> List.map (fun p -> p.Type.Format(displayContext)))),
+                      ("return", mem.ReturnParameter |> FSharpType.Prettify |> fun p -> p.Type.Format(displayContext))
             | _ -> () ]
     typeTextOfAllSymbolUses |> shouldEqual
               [("functionWithIncompleteSignature", ((4, 4), (4, 35)),

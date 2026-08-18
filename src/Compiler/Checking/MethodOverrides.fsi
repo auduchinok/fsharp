@@ -111,7 +111,6 @@ module DispatchSlotChecking =
         denv: DisplayEnv *
         infoReader: InfoReader *
         m: range *
-        nenv: NameResolutionEnv *
         sink: TcResultsSink *
         isOverallTyAbstract: bool *
         isObjExpr: bool *
@@ -146,7 +145,6 @@ module DispatchSlotChecking =
 /// "Type Completion" inference and a few other checks at the end of the inference scope
 val FinalTypeDefinitionChecksAtEndOfInferenceScope:
     infoReader: InfoReader *
-    nenv: NameResolutionEnv *
     sink: TcResultsSink *
     isImplementation: bool *
     denv: DisplayEnv *

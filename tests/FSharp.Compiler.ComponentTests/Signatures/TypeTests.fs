@@ -214,16 +214,17 @@ type EConverter () =
     |> typecheckResults
     |> fun results ->
         let writeJsonSymbolUse = results.GetSymbolUseAtLocation(10, 27, "    override this.WriteJson(writer, value, serializer) = failwith \"todo\"", [ "WriteJson" ]).Value
+        let displayContext = results.GetDisplayContextForPos(writeJsonSymbolUse.Range.End).Value
         match writeJsonSymbolUse.Symbol with
         | :? FSharpMemberOrFunctionOrValue as mfv ->
-            let valText = mfv.GetValSignatureText(writeJsonSymbolUse.DisplayContext, writeJsonSymbolUse.Range).Value
+            let valText = mfv.GetValSignatureText(displayContext, writeJsonSymbolUse.Range).Value
             Assert.Equal("override WriteJson: writer: obj * value: obj * serializer: obj -> unit", valText)
         | _ -> ()
 
         let canReadSymbolUse = results.GetSymbolUseAtLocation(13, 25, "    override this.CanRead = true", [ "CanRead" ]).Value
         match canReadSymbolUse.Symbol with
         | :? FSharpMemberOrFunctionOrValue as mfv ->
-            let valText = mfv.GetValSignatureText(canReadSymbolUse.DisplayContext, canReadSymbolUse.Range).Value
+            let valText = mfv.GetValSignatureText(displayContext, canReadSymbolUse.Range).Value
             Assert.Equal("override CanRead: bool", valText)
         | _ -> ()
 

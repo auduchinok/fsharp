@@ -692,7 +692,7 @@ let (|OnExpr|_|) ceenv nm synExpr =
 
             CallNameResolutionSink
                 ceenv.cenv.tcSink
-                (opName.idRange, ceenv.env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, ceenv.env.AccessRights)
+                (opName.idRange, item, emptyTyparInst, ItemOccurrence.Use)
 
             Some(e1, e2)
         | _ -> None
@@ -747,7 +747,7 @@ let MatchIntoSuffixOrRecover ceenv alreadyGivenError (nm: Ident) synExpr =
 
         CallNameResolutionSink
             ceenv.cenv.tcSink
-            (intoWordRange, ceenv.env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, ceenv.env.eAccessRights)
+            (intoWordRange, item, emptyTyparInst, ItemOccurrence.Use)
 
         (x, intoPat, alreadyGivenError)
     | _ ->
@@ -916,7 +916,7 @@ let (|CustomOperationClause|_|) ceenv e =
 
                 CallNameResolutionSink
                     ceenv.cenv.tcSink
-                    (intoWordRange, ceenv.env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, ceenv.env.eAccessRights)
+                    (intoWordRange, item, emptyTyparInst, ItemOccurrence.Use)
 
                 Some intoInfo
             | None -> None
@@ -3019,7 +3019,7 @@ let TcComputationExpression (cenv: TcFileState) env (overallTy: OverallTy) tpenv
         // A parameterized custom builder, e.g., `builder<…>`, `builder ()`.
         | Expr.App(funcExpr = Expr.Val(vref, _, m)) when not vref.IsMember || vref.IsConstructor ->
             let item = Item.CustomBuilder(vref.DisplayName, vref)
-            CallNameResolutionSink cenv.tcSink (m, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+            CallNameResolutionSink cenv.tcSink (m, item, emptyTyparInst, ItemOccurrence.Use)
             valRefEq cenv.g vref cenv.g.query_value_vref
         | _ -> false
 

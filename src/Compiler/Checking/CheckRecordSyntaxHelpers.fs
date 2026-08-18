@@ -68,7 +68,7 @@ let TransformAstForNestedUpdates (cenv: TcFileState) (env: TcEnv) overallTy (lid
         match innerFields with
         | [] -> failwith "unreachable"
         | (fieldId: Ident, item) :: rest ->
-            CallNameResolutionSink cenv.tcSink (fieldId.idRange, env.NameEnv, item, [], ItemOccurrence.Use, env.AccessRights)
+            CallNameResolutionSink cenv.tcSink (fieldId.idRange, item, [], ItemOccurrence.Use)
 
             let fieldId = ident (fieldId.idText, fieldId.idRange.MakeSynthetic())
 
@@ -123,7 +123,7 @@ let TransformAstForNestedUpdates (cenv: TcFileState) (env: TcEnv) overallTy (lid
     | accessIds, (outerFieldId, item) :: rest ->
         checkLanguageFeatureAndRecover cenv.g.langVersion LanguageFeature.NestedCopyAndUpdate (rangeOfLid lid)
 
-        CallNameResolutionSink cenv.tcSink (outerFieldId.idRange, env.NameEnv, item, [], ItemOccurrence.Use, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (outerFieldId.idRange, item, [], ItemOccurrence.Use)
 
         let outerFieldId = ident (outerFieldId.idText, outerFieldId.idRange.MakeSynthetic())
 

@@ -339,6 +339,8 @@ type internal FSharpSignatureHelpProvider [<ImportingConstructor>] (serviceProvi
                     lexerSymbol.FullIsland
                 )
 
+            let! displayContext = checkFileResults.GetDisplayContextForPos symbolUse.Range.End
+
             let isValid (mfv: FSharpMemberOrFunctionOrValue) =
                 not (PrettyNaming.IsOperatorDisplayName mfv.DisplayName)
                 && not mfv.IsProperty
@@ -454,7 +456,7 @@ type internal FSharpSignatureHelpProvider [<ImportingConstructor>] (serviceProvi
 
                         if argument.Count = 1 then
                             let argument = argument.[0]
-                            let typeText = argument.Type.FormatRichText symbolUse.DisplayContext
+                            let typeText = argument.Type.FormatRichText displayContext
                             typeText.Parts |> Seq.iter (RoslynHelpers.CollectTaggedText tt)
 
                             let name =
@@ -513,7 +515,7 @@ type internal FSharpSignatureHelpProvider [<ImportingConstructor>] (serviceProvi
 
                                 let tt = ResizeArray()
 
-                                let typeText = arg.Type.FormatRichText symbolUse.DisplayContext
+                                let typeText = arg.Type.FormatRichText displayContext
                                 typeText.Parts |> Seq.iter (RoslynHelpers.CollectTaggedText tt)
 
                                 let name =

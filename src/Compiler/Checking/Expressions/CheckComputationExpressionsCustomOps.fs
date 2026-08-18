@@ -10,7 +10,6 @@ open FSharp.Compiler.Infos
 open FSharp.Compiler.NameResolution
 open FSharp.Compiler.Syntax
 open FSharp.Compiler.Text
-open FSharp.Compiler.TypedTree
 open FSharp.Compiler.TypedTreeOps
 
 [<NoComparison; NoEquality>]
@@ -48,13 +47,13 @@ let private makeCustomOpResolutionCapturingSink
         member _.NotifyExprHasTypeSynthetic(ty, nenv, ad, m) =
             forwardTo.NotifyExprHasTypeSynthetic(ty, nenv, ad, m)
 
-        member _.NotifyNameResolution(endPos, item, tpinst, occurrenceType, nenv, ad, m, replace) =
+        member _.NotifyNameResolution(endPos, item, tpinst, occurrenceType, m, replace) =
             tryCapture m item tpinst
-            forwardTo.NotifyNameResolution(endPos, item, tpinst, occurrenceType, nenv, ad, m, replace)
+            forwardTo.NotifyNameResolution(endPos, item, tpinst, occurrenceType, m, replace)
 
-        member _.NotifyMethodGroupNameResolution(endPos, item, itemMethodGroup, tpinst, occurrenceType, nenv, ad, m, replace) =
+        member _.NotifyMethodGroupNameResolution(endPos, item, itemMethodGroup, tpinst, occurrenceType, m, replace) =
             tryCapture m item tpinst
-            forwardTo.NotifyMethodGroupNameResolution(endPos, item, itemMethodGroup, tpinst, occurrenceType, nenv, ad, m, replace)
+            forwardTo.NotifyMethodGroupNameResolution(endPos, item, itemMethodGroup, tpinst, occurrenceType, m, replace)
 
         member _.NotifyFormatSpecifierLocation(m, numArgs) =
             forwardTo.NotifyFormatSpecifierLocation(m, numArgs)
@@ -83,7 +82,7 @@ let enqueueDeferredCustomOpSink
     =
     let fallbackItem = Item.CustomOperation(opName, usageText, Some fallback)
 
-    CallNameResolutionSink sink (nm.idRange, nenv, fallbackItem, emptyTyparInst, ItemOccurrence.Use, ad)
+    CallNameResolutionSink sink (nm.idRange, fallbackItem, emptyTyparInst, ItemOccurrence.Use)
 
     queue.Add
         {
@@ -119,7 +118,7 @@ let captureCustomOperationOverloads (sink: TcResultsSink) (queue: ResizeArray<De
 
                 CallNameResolutionSinkReplacing
                     sink
-                    (entry.KeywordRange, entry.NameEnv, item, tpinst, ItemOccurrence.Use, entry.AccessRights)
+                    (entry.KeywordRange, item, tpinst, ItemOccurrence.Use)
 
         result
     | _ -> action ()

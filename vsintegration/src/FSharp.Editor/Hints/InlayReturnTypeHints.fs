@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
+﻿// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
 namespace Microsoft.VisualStudio.FSharp.Editor.Hints
 
@@ -9,10 +9,15 @@ open FSharp.Compiler.Text
 open Hints
 open CancellableTasks
 
-type InlayReturnTypeHints(parseFileResults: FSharpParseFileResults, symbol: FSharpMemberOrFunctionOrValue) =
+type InlayReturnTypeHints
+    (parseFileResults: FSharpParseFileResults, checkResults: FSharpCheckFileResults, symbol: FSharpMemberOrFunctionOrValue) =
 
     let getHintParts (symbolUse: FSharpSymbolUse) =
-        symbol.GetReturnTypeRichText symbolUse.DisplayContext
+        let displayContext =
+            checkResults.GetDisplayContextForPos symbolUse.Range.End
+            |> Option.defaultValue FSharpDisplayContext.Empty
+
+        symbol.GetReturnTypeRichText displayContext
         |> Option.map (fun typeInfo ->
             [
                 TaggedText(TextTag.Text, ": ")

@@ -117,24 +117,25 @@ let ``Intro test`` () =
 [<Fact>]
 let ``GetMethodsAsSymbols should return all overloads of a method as FSharpSymbolUse`` () =
 
-    let extractCurriedParams (symbol:FSharpSymbolUse) =
-        match symbol.Symbol with
+    let extractCurriedParams displayContext (symbolUse: FSharpSymbolUse) =
+        match symbolUse.Symbol with
         | :? FSharpMemberOrFunctionOrValue as mvf ->
             [for pg in mvf.CurriedParameterGroups do
-                for p:FSharpParameter in pg do
-                    yield p.DisplayName, p.Type.Format symbol.DisplayContext]
+                for p: FSharpParameter in pg do
+                    yield p.DisplayName, p.Type.Format displayContext]
         | _ -> []
 
     // Split the input & define file name
     let inputLines = input.Split('\n')
     let file = "/home/user/Test.fsx"
     let parseResult, typeCheckResults =  parseAndCheckScript(file, input)
+    let displayContext = typeCheckResults.GetDisplayContextForPos(Position.mkPos 5 27).Value
     let methodsSymbols = typeCheckResults.GetMethodsAsSymbols(5, 27, inputLines[4], ["String"; "Concat"])
     match methodsSymbols with
     | Some methods ->
         let results =
             [ for ms in methods do
-                yield ms.Symbol.DisplayName, extractCurriedParams ms ]
+                yield ms.Symbol.DisplayName, extractCurriedParams displayContext ms ]
             |> List.sortBy (fun (_name, parameters) -> parameters.Length, (parameters |> List.map snd ))
         let expected =
             [("Concat", [("values", "'T seq")]);

@@ -752,9 +752,9 @@ module AttributeTargets =
     let ModuleDecl = AttributeTargets.Class
     let Top = AttributeTargets.Assembly ||| AttributeTargets.Module ||| AttributeTargets.Method
 
-let ForNewConstructors tcSink (env: TcEnv) mObjTy methodName meths =
+let ForNewConstructors tcSink mObjTy methodName meths =
     let origItem = Item.CtorGroup(methodName, meths)
-    let callSink (item, minst) = CallMethodGroupNameResolutionSink tcSink (mObjTy, env.NameEnv, item, origItem, minst, ItemOccurrence.Use, env.AccessRights)
+    let callSink (item, minst) = CallMethodGroupNameResolutionSink tcSink (mObjTy, item, origItem, minst, ItemOccurrence.Use)
     let sendToSink minst refinedMeths = 
         callSink (Item.CtorGroup(methodName, refinedMeths), minst)
     match meths with
@@ -1155,7 +1155,7 @@ let PublishModuleDefn (cenv: cenv) env mspec =
        if intoFslibCcu then mty
        else mty.AddEntity mspec)
     let item = Item.ModuleOrNamespaces([mkLocalModuleRef mspec])
-    CallNameResolutionSink cenv.tcSink (mspec.Range, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights)
+    CallNameResolutionSink cenv.tcSink (mspec.Range, item, emptyTyparInst, ItemOccurrence.Binding)
 
 let PublishTypeDefn (cenv: cenv) env mspec =
     UpdateAccModuleOrNamespaceType cenv env (fun _ mty ->
@@ -1464,7 +1464,7 @@ let MakeAndPublishVal (cenv: cenv) env (altActualParent, inSig, declKind, valRec
         CallEnvSink cenv.tcSink (vspec.Range, nenv, env.eAccessRights)
         let vref = mkLocalValRef vspec
         let item = Item.Value(vref)
-        CallNameResolutionSink cenv.tcSink (vspec.Range, nenv, item, emptyTyparInst, ItemOccurrence.Binding, env.eAccessRights)
+        CallNameResolutionSink cenv.tcSink (vspec.Range, item, emptyTyparInst, ItemOccurrence.Binding)
         
         // (#14969, #19173) For active patterns in signature files, also report each case as Item.ActivePatternResult
         // so that Find All References can find them. In implementation files, this is done during 
@@ -1474,7 +1474,7 @@ let MakeAndPublishVal (cenv: cenv) env (altActualParent, inSig, declKind, valRec
             | Some apinfo ->
                 apinfo.ActiveTagsWithRanges |> List.iteri (fun i (_tag, tagRange) ->
                     let apItem = Item.ActivePatternResult(apinfo, vspec.TauType, i, tagRange)
-                    CallNameResolutionSink cenv.tcSink (tagRange, nenv, apItem, emptyTyparInst, ItemOccurrence.Binding, env.eAccessRights))
+                    CallNameResolutionSink cenv.tcSink (tagRange, apItem, emptyTyparInst, ItemOccurrence.Binding))
             | None -> ()
     | _ -> ()
 
@@ -1816,20 +1816,20 @@ let MakeAndPublishSimpleValsForMergedScope (cenv: cenv) env m (names: NameMap<_>
         else
             let nameResolutions = ResizeArray()
 
-            let notifyNameResolution (pos, item, itemGroup, itemTyparInst, occurrence, nenv, ad, m: range, replacing) =
+            let notifyNameResolution (pos, item, itemGroup, itemTyparInst, occurrence, m: range, replacing) =
                 if not m.IsSynthetic then
-                    nameResolutions.Add(pos, item, itemGroup, itemTyparInst, occurrence, nenv, ad, m, replacing)
+                    nameResolutions.Add(pos, item, itemGroup, itemTyparInst, occurrence, m, replacing)
 
             let values, vspecMap =
                 let sink =
                     { new ITypecheckResultsSink with
                         member _.NotifyEnvWithScope(_, _, _) = () // ignore EnvWithScope reports
 
-                        member _.NotifyNameResolution(pos, item, itemTyparInst, occurrence, nenv, ad, m, replacing) =
-                            notifyNameResolution (pos, item, item, itemTyparInst, occurrence, nenv, ad, m, replacing)
+                        member _.NotifyNameResolution(pos, item, itemTyparInst, occurrence, m, replacing) =
+                            notifyNameResolution (pos, item, item, itemTyparInst, occurrence, m, replacing)
 
-                        member _.NotifyMethodGroupNameResolution(pos, item, itemGroup, itemTyparInst, occurrence, nenv, ad, m, replacing) =
-                            notifyNameResolution (pos, item, itemGroup, itemTyparInst, occurrence, nenv, ad, m, replacing)
+                        member _.NotifyMethodGroupNameResolution(pos, item, itemGroup, itemTyparInst, occurrence, m, replacing) =
+                            notifyNameResolution (pos, item, itemGroup, itemTyparInst, occurrence, m, replacing)
 
                         member _.NotifyExprHasType(_, _, _, _) = assert false // no expr typings in MakeAndPublishSimpleVals
                         member _.NotifyExprHasTypeSynthetic(_, _, _, _) =  assert false // no expr typings in MakeAndPublishSimpleVals
@@ -1848,20 +1848,20 @@ let MakeAndPublishSimpleValsForMergedScope (cenv: cenv) env m (names: NameMap<_>
                 MakeAndPublishSimpleVals cenv env names
 
             if nameResolutions.Count <> 0 then
-                let _, _, _, _, _, _, ad, m1, _replacing = nameResolutions[0]
+                let _, _, _, _, _, m1, _replacing = nameResolutions[0]
                 // mergedNameEnv - name resolution env that contains all names
                 // mergedRange - union of ranges of names
                 let mergedNameEnv, mergedRange =
-                    ((env.NameEnv, m1), nameResolutions) ||> Seq.fold (fun (nenv, merged) (_, item, _, _, _, _, _, m, _) ->
+                    ((env.NameEnv, m1), nameResolutions) ||> Seq.fold (fun (nenv, merged) (_, item, _, _, _, m, _) ->
                         // MakeAndPublishVal creates only Item.Value
                         let item = match item with Item.Value item -> item | _ -> failwith "impossible"
                         (AddFakeNamedValRefToNameEnv item.DisplayName nenv item), (unionRanges m merged)
                         )
                 // send notification about mergedNameEnv
-                CallEnvSink cenv.tcSink (mergedRange, mergedNameEnv, ad)
+                CallEnvSink cenv.tcSink (mergedRange, mergedNameEnv, env.AccessRights)
                 // call CallNameResolutionSink for all captured name resolutions using mergedNameEnv
-                for _, item, itemGroup, itemTyparInst, occurrence, _nenv, ad, m, _replacing in nameResolutions do
-                    CallMethodGroupNameResolutionSink cenv.tcSink (m, mergedNameEnv, item, itemGroup, itemTyparInst, occurrence, ad)
+                for _, item, itemGroup, itemTyparInst, occurrence, m, _replacing in nameResolutions do
+                    CallMethodGroupNameResolutionSink cenv.tcSink (m, item, itemGroup, itemTyparInst, occurrence)
 
             values, vspecMap
 
@@ -2002,7 +2002,7 @@ let BuildFieldMap (cenv: cenv) env isPartial ty (flds: (Ident * ExplicitOrSpread
 
                     // Record the precise resolution of the field for intellisense
                     let item = Item.RecdField(rfinfo2)
-                    CallNameResolutionSink cenv.tcSink (ident.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, ad)
+                    CallNameResolutionSink cenv.tcSink (ident.idRange, item, emptyTyparInst, ItemOccurrence.Use)
 
                     let fref2 = rfinfo2.RecdFieldRef
 
@@ -4349,7 +4349,7 @@ and TcPseudoMemberSpec cenv newOk env synTypes tpenv synMemberSig m =
                             warning(Error(FSComp.SR.tcTraitMayNotUseComplexThings(), m))
 
             let item = Item.OtherName (Some id, memberConstraintTy, None, None, id.idRange)
-            CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.AccessRights)
+            CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.Use)
 
             TTrait(tys, logicalCompiledName, memberFlags, argTys, returnTy, ref None, ref None), tpenv
 
@@ -4517,7 +4517,7 @@ and TcTypeOrMeasureParameter kindOpt cenv (env: TcEnv) newOk tpenv (SynTypar(id,
         | Some TyparKind.Type, TyparKind.Measure -> error (Error(FSComp.SR.tcExpectedTypeParameter(), id.idRange)); res, tpenv
         | _, _ ->
             let item = Item.TypeVar(id.idText, res)
-            CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.UseInType, env.AccessRights)
+            CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.UseInType)
             res, tpenv
     let key = id.idText
 
@@ -4552,7 +4552,7 @@ and TcTypeOrMeasureParameter kindOpt cenv (env: TcEnv) newOk tpenv (SynTypar(id,
         let tpR = Construct.NewTypar (kind, TyparRigidity.WarnIfNotRigid, tp, false, TyparDynamicReq.Yes, [], false, false)
         let item = Item.TypeVar(id.idText, tpR)
 
-        CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.UseInType, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.UseInType)
 
         tpR, AddUnscopedTypar key tpR tpenv
 
@@ -4579,7 +4579,7 @@ and TcTyparDecl (cenv: cenv) env synTyparDecl =
         ()
     let item = Item.TypeVar(id.idText, tp)
 
-    CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.UseInType, env.eAccessRights)
+    CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.UseInType)
 
     tp
 
@@ -4750,7 +4750,7 @@ and TcNestedAppType (cenv: cenv) newOk checkConstraints occ iwsam env tpenv synL
     let leftTy, tpenv = TcType cenv newOk checkConstraints occ iwsam env tpenv synLeftTy
     match leftTy with
     | AppTy g (tcref, tinst) ->
-        let tcref, inst = ResolveTypeLongIdentInTyconRef cenv.tcSink cenv.nameResolver env.eNameResEnv (TypeNameResolutionInfo.ResolveToTypeRefs (TypeNameResolutionStaticArgsInfo.FromTyArgs args.Length)) ad m tcref longId
+        let tcref, inst = ResolveTypeLongIdentInTyconRef cenv.tcSink cenv.nameResolver (TypeNameResolutionInfo.ResolveToTypeRefs (TypeNameResolutionStaticArgsInfo.FromTyArgs args.Length)) ad m tcref longId
         TcTypeApp cenv newOk checkConstraints occ env tpenv m tcref tinst args inst
     | _ ->
         error(Error(FSComp.SR.tcTypeHasNoNestedTypes(), m))
@@ -4794,7 +4794,7 @@ and TcAnonRecdType (cenv: cenv) newOk checkConstraints occ env tpenv isStruct ar
 
     sortedFieldTys |> List.iteri (fun i (x,_) ->
         let item = Item.AnonRecdField(anonInfo, sortedCheckedArgTys, i, x.idRange)
-        CallNameResolutionSink cenv.tcSink (x.idRange,env.NameEnv,item,emptyTyparInst,ItemOccurrence.UseInType,env.eAccessRights))
+        CallNameResolutionSink cenv.tcSink (x.idRange, item, emptyTyparInst, ItemOccurrence.UseInType))
 
     TType_anon(anonInfo, sortedCheckedArgTys),tpenv
 
@@ -5002,7 +5002,7 @@ and TcStaticConstantParameter (cenv: cenv) (env: TcEnv) tpenv kind (StripParenTy
         match idOpt with
         | Some id ->
             let item = Item.OtherName (Some id, ttype, None, Some container, id.idRange)
-            CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.AccessRights)
+            CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.Use)
         | _ -> ()
 
     match v with
@@ -5331,7 +5331,7 @@ and TcPatLongIdentActivePatternCase warnOnUpper (cenv: cenv) (env: TcEnv) vFlags
             cenv
 
     // Report information about the 'active recognizer' occurrence to IDE
-    CallNameResolutionSink cenv.tcSink (mLongId, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Pattern, env.eAccessRights)
+    CallNameResolutionSink cenv.tcSink (mLongId, item, emptyTyparInst, ItemOccurrence.Pattern)
 
     // TOTAL/PARTIAL ACTIVE PATTERNS
     let _, vExpr, _, _, tinst, _ = TcVal cenv env tpenv vref None None m
@@ -6524,7 +6524,7 @@ and TcExprIntegerForLoop (cenv: cenv) overallTy env tpenv (spFor, spTo, id, star
 
     // notify name resolution sink about loop variable
     let item = Item.Value(mkLocalValRef idv)
-    CallNameResolutionSink cenv.tcSink (idv.Range, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights)
+    CallNameResolutionSink cenv.tcSink (idv.Range, item, emptyTyparInst, ItemOccurrence.Binding)
 
     let bodyExpr, tpenv = TcStmt cenv envinner tpenv body
     mkFastForLoop g (spFor, spTo, m, idv, startExpr, dir, finishExpr, bodyExpr), tpenv
@@ -6756,7 +6756,7 @@ and TcTyparExprThen (cenv: cenv) overallTy env tpenv synTypar m delayed =
             match rest with
             | [] -> delayed2
             | _ -> DelayedDotLookup (rest, m2) :: delayed2
-        CallNameResolutionSink cenv.tcSink (ident.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (ident.idRange, item, emptyTyparInst, ItemOccurrence.Use)
         TcItemThen cenv overallTy env tpenv ([], item, mExprAndLongId, ident.idRange, [], AfterResolution.DoNothing) (Some ty) delayed3
         //TcLookupItemThen cenv overallTy env tpenv mObjExpr objExpr objExprTy delayed item mItem rest afterResolution
     | _ ->
@@ -7079,7 +7079,7 @@ and TcCtorCall isNaked cenv env tpenv (overallTy: OverallTy) objTy mObjTyOpt ite
         let afterResolution =
             match mObjTyOpt, afterTcOverloadResolutionOpt with
             | _, Some action -> action
-            | Some mObjTy, None -> ForNewConstructors cenv.tcSink env mObjTy methodName minfos
+            | Some mObjTy, None -> ForNewConstructors cenv.tcSink mObjTy methodName minfos
             | None, _ -> AfterResolution.DoNothing
 
         TcMethodApplicationThen cenv env overallTy (Some objTy) tpenv None [] mWholeCall mItem methodName ad PossiblyMutates false meths afterResolution isSuperInit args ExprAtomicFlag.NonAtomic None delayed
@@ -7087,7 +7087,7 @@ and TcCtorCall isNaked cenv env tpenv (overallTy: OverallTy) objTy mObjTyOpt ite
     | Item.DelegateCtor ty, [arg] ->
         // Re-record the name resolution since we now know it's a constructor call
         match mObjTyOpt with
-        | Some mObjTy -> CallNameResolutionSink cenv.tcSink (mObjTy, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.AccessRights)
+        | Some mObjTy -> CallNameResolutionSink cenv.tcSink (mObjTy, item, emptyTyparInst, ItemOccurrence.Use)
         | None -> ()
         TcNewDelegateThen cenv (MustEqual objTy) env tpenv mItem mWholeCall ty arg ExprAtomicFlag.NonAtomic delayed
 
@@ -7541,7 +7541,7 @@ and TcObjectExpr (cenv: cenv) env tpenv (objTy, realObjTy, argopt, binds, extraI
                 match item, argopt with
                 | Item.CtorGroup(methodName, minfos), Some (arg, baseIdOpt) ->
                     let meths = minfos |> List.map (fun minfo -> minfo, None)
-                    let afterResolution = ForNewConstructors cenv.tcSink env mObjTy methodName minfos
+                    let afterResolution = ForNewConstructors cenv.tcSink mObjTy methodName minfos
                     let ad = env.AccessRights
 
                     let expr, tpenv = TcMethodApplicationThen cenv env (MustEqual objTy) None tpenv None [] mWholeExpr mObjTy methodName ad PossiblyMutates false meths afterResolution CtorValUsedAsSuperInit [arg] ExprAtomicFlag.Atomic None []
@@ -7573,7 +7573,7 @@ and TcObjectExpr (cenv: cenv) env tpenv (objTy, realObjTy, argopt, binds, extraI
             DispatchSlotChecking.CheckOverridesAreAllUsedOnce (env.DisplayEnv, g, cenv.infoReader, true, implTy, dispatchSlotsKeyed, availPriorOverrides, overrideSpecs)
 
             if not hasStaticMembers then
-                DispatchSlotChecking.CheckDispatchSlotsAreImplemented (env.DisplayEnv, cenv.infoReader, m, env.NameEnv, cenv.tcSink, isOverallTyAbstract, true, false, implTy, dispatchSlots, availPriorOverrides, overrideSpecs) |> ignore
+                DispatchSlotChecking.CheckDispatchSlotsAreImplemented (env.DisplayEnv, cenv.infoReader, m, cenv.tcSink, isOverallTyAbstract, true, false, implTy, dispatchSlots, availPriorOverrides, overrideSpecs) |> ignore
 
         // 3. create the specs of overrides
         let allTypeImpls =
@@ -8112,7 +8112,7 @@ and TcRecdExpr cenv overallTy env tpenv (inherits, withExprOpt, synRecdFields, m
             for fldId, _ in flds do
                 match TryFindAnonRecdFieldOfType g overallTy fldId.idText with
                 | Some item ->
-                    CallNameResolutionSink cenv.tcSink (fldId.idRange, env.eNameResEnv, item, emptyTyparInst, ItemOccurrence.UseInType, env.eAccessRights)
+                    CallNameResolutionSink cenv.tcSink (fldId.idRange, item, emptyTyparInst, ItemOccurrence.UseInType)
                 | None -> ()
             let firstPartRange = withStartEnd mWholeExpr.Start (mkPos mWholeExpr.StartLine (mWholeExpr.StartColumn + 1)) mWholeExpr
             // Use the  left { in the expression
@@ -8287,7 +8287,7 @@ and TcNewAnonRecdExpr cenv (overallTy: TType) env tpenv (isStruct, unsortedField
         |> List.iteri (fun j fieldName ->
             let m = fieldName.idRange
             let item = Item.AnonRecdField(anonInfo, sortedFieldTys, j, m)
-            CallNameResolutionSink cenv.tcSink (m, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights))
+            CallNameResolutionSink cenv.tcSink (m, item, emptyTyparInst, ItemOccurrence.Use))
 
         spreadSrcs, fieldsInSrcOrder, anonInfo, tpenv
 
@@ -8414,7 +8414,7 @@ and TcCopyAndUpdateAnonRecdExpr cenv (overallTy: TType) env tpenv (isStruct, (or
         match expr with
         | Choice1Of2 _ ->
             let item = Item.AnonRecdField(anonInfo, sortedFieldTysAll, j, fieldId.idRange)
-            CallNameResolutionSink cenv.tcSink (fieldId.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+            CallNameResolutionSink cenv.tcSink (fieldId.idRange, item, emptyTyparInst, ItemOccurrence.Use)
         | Choice2Of2 _ -> ())
 
     let unsortedFieldTysAll =
@@ -9214,7 +9214,6 @@ and TcItemThen (cenv: cenv) (overallTy: OverallTy) env tpenv (tinstEnclosing, it
 // NOTE: the code for this is all a bit convoluted and should really be simplified/regularized.
 and TcUnionCaseOrExnCaseOrActivePatternResultItemThen (cenv: cenv) overallTy env item tpenv mItem mItemIdent delayed =
     let g = cenv.g
-    let ad = env.eAccessRights
     // ucaseAppTy is the type of the union constructor applied to its (optional) argument
     let ucaseAppTy = NewInferenceType g
     let mkConstrApp, argTys, argNames =
@@ -9291,7 +9290,7 @@ and TcUnionCaseOrExnCaseOrActivePatternResultItemThen (cenv: cenv) overallTy env
                                 | Item.UnionCase (uci, _) -> Item.UnionCaseField (uci, i)
                                 | Item.ExnCase tref -> Item.RecdField (RecdFieldInfo ([], RecdFieldRef (tref, id.idText)))
                                 | _ -> failwithf "Expecting union case or exception item, got: %O" item
-                            CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, argItem, emptyTyparInst, ItemOccurrence.Use, ad)
+                            CallNameResolutionSink cenv.tcSink (id.idRange, argItem, emptyTyparInst, ItemOccurrence.Use)
                         else error(Error(FSComp.SR.tcUnionCaseFieldCannotBeUsedMoreThanOnce(RichText.mkRecordField id.idText), id.idRange))
                         currentIndex <- SEEN_NAMED_ARGUMENT
                     | None ->
@@ -9385,7 +9384,7 @@ and TcTypeItemThen (cenv: cenv) overallTy env nm ty tpenv mItem tinstEnclosing d
 
         // Report information about the whole expression including type arguments to VS
         let item = Item.Types(nm, [ty])
-        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, item, emptyTyparInst, ItemOccurrence.Use)
         let typeNameResInfo = GetLongIdentTypeNameInfo otherDelayed
         let item, mItem, mItemIdent, rest, afterResolution = ResolveExprDotLongIdentAndComputeRange cenv.tcSink cenv.nameResolver (unionRanges mExprAndTypeArgs mLongId) ad env.eNameResEnv ty longId typeNameResInfo IgnoreOverrides true None
         TcItemThen cenv overallTy env tpenv ((argsOfAppTy g ty), item, mItem, mItemIdent, rest, afterResolution) None otherDelayed
@@ -9394,7 +9393,7 @@ and TcTypeItemThen (cenv: cenv) overallTy env nm ty tpenv mItem tinstEnclosing d
         // A case where we have an incomplete name e.g. 'Foo<int>.' - we still want to report it to VS!
         let ty, _ = TcNestedTypeApplication cenv NewTyparsOK CheckCxs ItemOccurrence.UseInType WarnOnIWSAM.Yes env tpenv mExprAndTypeArgs ty tinstEnclosing tyargs
         let item = Item.Types(nm, [ty])
-        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, item, emptyTyparInst, ItemOccurrence.Use)
 
         // Same error as in the following case
         error(Error(FSComp.SR.tcInvalidUseOfTypeName(), mItem))
@@ -9424,7 +9423,7 @@ and TcMethodItemThen (cenv: cenv) overallTy env item methodName minfos tpenv mIt
 
             // Replace the resolution including the static parameters, plus the extra information about the original method info
             let item = Item.MethodGroup(methodName, [minfoAfterStaticArguments], Some minfos[0])
-            CallNameResolutionSinkReplacing cenv.tcSink (mItem, env.NameEnv, item, [], ItemOccurrence.Use, env.eAccessRights)
+            CallNameResolutionSinkReplacing cenv.tcSink (mItem, item, [], ItemOccurrence.Use)
 
             match otherDelayed with
             | DelayedApp(atomicFlag, _, _, arg, mExprAndArg) :: otherDelayed ->
@@ -9440,7 +9439,7 @@ and TcMethodItemThen (cenv: cenv) overallTy env item methodName minfos tpenv mIt
         // FUTURE: can we do better than emptyTyparInst here, in order to display instantiations
         // of type variables in the quick info provided in the IDE? But note we haven't yet even checked if the
         // number of type arguments is correct...
-        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, item, emptyTyparInst, ItemOccurrence.Use)
 
         match otherDelayed with
         | DelayedApp(atomicFlag, _, _, arg, mExprAndArg) :: otherDelayed ->
@@ -9498,7 +9497,7 @@ and TcCtorItemThen (cenv: cenv) overallTy env item nm minfos tinstEnclosing tpen
 
         // A case where we have an incomplete name e.g. 'Foo<int>.' - we still want to report it to VS!
         let resolvedItem = Item.Types(nm, [objTy])
-        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, env.NameEnv, resolvedItem, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+        CallNameResolutionSink cenv.tcSink (mExprAndTypeArgs, resolvedItem, emptyTyparInst, ItemOccurrence.Use)
 
         minfos |> List.iter (fun minfo -> UnifyTypes cenv env mExprAndTypeArgs minfo.ApparentEnclosingType objTy)
         TcCtorCall true cenv env tpenv overallTy objTy (Some mItemIdent) item false [] mExprAndTypeArgs otherDelayed (Some afterResolution)
@@ -9710,7 +9709,7 @@ and TcDelegateCtorItemThen cenv overallTy env ty tinstEnclosing tpenv mItem dela
 
         // Report information about the whole expression including type arguments to VS
         let item = Item.DelegateCtor ty
-        CallNameResolutionSink cenv.tcSink (mItemAndTypeArgs, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, env.eAccessRights)
+        CallNameResolutionSink cenv.tcSink (mItemAndTypeArgs, item, emptyTyparInst, ItemOccurrence.Use)
         TcNewDelegateThen cenv overallTy env tpenv mItem mItemAndArg ty arg atomicFlag otherDelayed
     | _ ->
         error(Error(FSComp.SR.tcInvalidUseOfDelegate(), mItem))
@@ -10016,7 +10015,7 @@ and TcLookupItemThen cenv overallTy env tpenv mObjExpr objExpr objExprTy delayed
         | Some minfoAfterStaticArguments ->
             // Replace the resolution including the static parameters, plus the extra information about the original method info
             let item = Item.MethodGroup(methodName, [minfoAfterStaticArguments], Some minfos[0])
-            CallNameResolutionSinkReplacing cenv.tcSink (mExprAndItem, env.NameEnv, item, [], ItemOccurrence.Use, env.eAccessRights)
+            CallNameResolutionSinkReplacing cenv.tcSink (mExprAndItem, item, [], ItemOccurrence.Use)
 
             TcMethodApplicationThen cenv env overallTy None tpenv None objArgs mExprAndItem mItemIdent methodName ad mutates false [(minfoAfterStaticArguments, None)] afterResolution NormalValUse args atomicFlag None delayed
         | None ->
@@ -10896,7 +10895,7 @@ and TcMethodApplication
                 | None -> id.idRange
             let container = ArgumentContainer.Method finalCalledMethInfo
             let item = Item.OtherName (idOpt, assignedArg.CalledArg.CalledArgumentType, None, Some container, m)
-            CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, ad))
+            CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.Use))
 
     /// STEP 6. Build the call expression, then adjust for byref-returns, out-parameters-as-tuples, post-hoc property assignments, methods-as-first-class-value,
 
@@ -11037,7 +11036,7 @@ and TcSetterArgExpr (cenv: cenv) env denv objExpr ad assignedSetter calledFromCo
 
     // Record the resolution for the Language Service
     let item = Item.SetterArg (id, defnItem)
-    CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Use, ad)
+    CallNameResolutionSink cenv.tcSink (id.idRange, item, emptyTyparInst, ItemOccurrence.Use)
 
     argExprPrebinder, action, m
 
@@ -11663,7 +11662,7 @@ and TcNormalizedBinding declKind (cenv: cenv) env tpenv overallTy safeThisValOpt
 
                 apinfo.ActiveTagsWithRanges |> List.iteri (fun i (_tag, tagRange) ->
                     let item = Item.ActivePatternResult(apinfo, apOverallTy, i, tagRange)
-                    CallNameResolutionSink cenv.tcSink (tagRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights))
+                    CallNameResolutionSink cenv.tcSink (tagRange, item, emptyTyparInst, ItemOccurrence.Binding))
 
                 { envinner with eNameResEnv = AddActivePatternResultTagsToNameEnv apinfo envinner.eNameResEnv apOverallTy m }
             | None ->
@@ -11998,7 +11997,7 @@ and TcAttributeEx canFail (cenv: cenv) (env: TcEnv) attrTgt attrEx (synAttr: Syn
             match item with
             | Item.CtorGroup(methodName, minfos) ->
                 let meths = minfos |> List.map (fun minfo -> minfo, None)
-                let afterResolution = ForNewConstructors cenv.tcSink env tyId.idRange methodName minfos
+                let afterResolution = ForNewConstructors cenv.tcSink tyId.idRange methodName minfos
                 let (expr, attributeAssignedNamedItems, _), _ =
                   TcMethodApplication true cenv env tpenv None [] mAttr mAttr methodName None ad PossiblyMutates false meths afterResolution NormalValUse [arg] (MustEqual ty) None []
 
@@ -12068,7 +12067,7 @@ and TcAttributeEx canFail (cenv: cenv) (env: TcEnv) attrTgt attrEx (synAttr: Syn
                           errorR(Error(FSComp.SR.tcPropertyOrFieldNotFoundInAttribute(), m))
                           id.idText, false, g.unit_ty
                     let propNameItem = Item.SetterArg(id, setterItem)
-                    CallNameResolutionSink cenv.tcSink (id.idRange, env.NameEnv, propNameItem, emptyTyparInst, ItemOccurrence.Use, ad)
+                    CallNameResolutionSink cenv.tcSink (id.idRange, propNameItem, emptyTyparInst, ItemOccurrence.Use)
 
                     AddCxTypeMustSubsumeType ContextInfo.NoContext env.DisplayEnv cenv.css m NoTrace argTy callerArgTy
 
@@ -12931,7 +12930,7 @@ and AnalyzeAndMakeAndPublishRecursiveValue
     match toolIdOpt with
     | Some tid when not tid.idRange.IsSynthetic && not (equals tid.idRange bindingId.idRange) ->
         let item = Item.Value (mkLocalValRef vspec)
-        CallNameResolutionSink cenv.tcSink (tid.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.RelatedText, env.eAccessRights)
+        CallNameResolutionSink cenv.tcSink (tid.idRange, item, emptyTyparInst, ItemOccurrence.RelatedText)
     | _ -> ()
 
     let mangledId = ident(vspec.LogicalName, vspec.Range)
@@ -13549,7 +13548,7 @@ and TcLetrecBindings overridesOK (cenv: cenv) env tpenv (binds, bindsm, scopem) 
 // Bind specifications of values
 //-------------------------------------------------------------------------
 
-let private PublishArguments (cenv: cenv) (env: TcEnv) vspec (synValSig: SynValSig) numEnclosingTypars =
+let private PublishArguments (cenv: cenv) vspec (synValSig: SynValSig) numEnclosingTypars =
     let arities = arityOfVal vspec
     let _tps, _witnessInfos, curriedArgInfos, _retTy, _ = GetValReprTypeInCompiledForm cenv.g arities numEnclosingTypars vspec.Type vspec.DefinitionRange
 
@@ -13568,7 +13567,7 @@ let private PublishArguments (cenv: cenv) (env: TcEnv) vspec (synValSig: SynValS
 
     for (argTy, argReprInfo), ident in argData do
         let item = Item.OtherName (Some ident, argTy, Some argReprInfo, None, ident.idRange)
-        CallNameResolutionSink cenv.tcSink (ident.idRange, env.NameEnv, item, emptyTyparInst, ItemOccurrence.Binding, env.AccessRights)
+        CallNameResolutionSink cenv.tcSink (ident.idRange, item, emptyTyparInst, ItemOccurrence.Binding)
 
 let TcAndPublishValSpec (cenv: cenv, env, containerInfo: ContainerInfo, declKind : DeclKind, memFlagsOpt, tpenv, synValSig) =
 
@@ -13657,7 +13656,7 @@ let TcAndPublishValSpec (cenv: cenv, env, containerInfo: ContainerInfo, declKind
 
         let vspec = MakeAndPublishVal cenv env (altActualParent, true, declKind, ValNotInRecScope, valscheme, attrs, xmlDoc, literalValue, isGeneratedEventVal)
 
-        PublishArguments cenv env vspec synValSig allDeclaredTypars.Length
+        PublishArguments cenv vspec synValSig allDeclaredTypars.Length
 
         assert(vspec.InlineInfo = inlineFlag)
 

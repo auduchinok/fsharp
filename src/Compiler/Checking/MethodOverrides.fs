@@ -325,7 +325,7 @@ module DispatchSlotChecking =
 
     /// Check all dispatch slots are implemented by some override.
     let CheckDispatchSlotsAreImplemented (denv, infoReader: InfoReader, m,
-                                          nenv, sink: TcResultsSink,
+                                          sink: TcResultsSink,
                                           isOverallTyAbstract,
                                           isObjExpr,
                                           isExplicitInterfaceImpl,
@@ -367,7 +367,7 @@ module DispatchSlotChecking =
             | [ovd] ->
                 if not ovd.IsCompilerGenerated then
                     let item = Item.MethodGroup(ovd.LogicalName, [dispatchSlot],None)
-                    CallNameResolutionSink sink (ovd.Range, nenv, item, dispatchSlot.FormalMethodTyparInst, ItemOccurrence.Implemented, AccessorDomain.AccessibleFromSomewhere)
+                    CallNameResolutionSink sink (ovd.Range, item, dispatchSlot.FormalMethodTyparInst, ItemOccurrence.Implemented)
             | [] -> 
                 if (not reqdSlot.IsOptional ||
                     (isExplicitInterfaceImpl
@@ -794,7 +794,7 @@ module DispatchSlotChecking =
 
     /// Check that a type definition implements all its required interfaces after processing all declarations 
     /// within a file.
-    let CheckImplementationRelationAtEndOfInferenceScope (infoReader : InfoReader, denv, nenv, sink, tycon: Tycon, isImplementation) =
+    let CheckImplementationRelationAtEndOfInferenceScope (infoReader : InfoReader, denv, sink, tycon: Tycon, isImplementation) =
 
         let g = infoReader.g
         let amap = infoReader.amap
@@ -865,7 +865,7 @@ module DispatchSlotChecking =
                         && tycon.ImmediateInterfacesOfFSharpTycon
                            |> List.exists (fun (ty, compgen, _) -> not compgen && typeEquiv g ty reqdTy)
 
-                    let allCorrect = CheckDispatchSlotsAreImplemented (denv, infoReader, m, nenv, sink, tcaug.tcaug_abstract, false, isExplicitInterfaceImpl, reqdTy, dispatchSlots, availPriorOverrides, overrides)
+                    let allCorrect = CheckDispatchSlotsAreImplemented (denv, infoReader, m, sink, tcaug.tcaug_abstract, false, isExplicitInterfaceImpl, reqdTy, dispatchSlots, availPriorOverrides, overrides)
                     
                     // Tell the user to mark the thing abstract if it was missing implementations
                     if not allCorrect && not tcaug.tcaug_abstract && (isClassTy g reqdTy) then
@@ -923,7 +923,7 @@ module DispatchSlotChecking =
             overrideBy.MemberInfo.Value.ImplementedSlotSigs <- overridden)
 
 /// "Type Completion" inference and a few other checks at the end of the inference scope
-let FinalTypeDefinitionChecksAtEndOfInferenceScope (infoReader: InfoReader, nenv, sink, isImplementation, denv, tycon: Tycon) =
+let FinalTypeDefinitionChecksAtEndOfInferenceScope (infoReader: InfoReader, sink, isImplementation, denv, tycon: Tycon) =
 
     let g = infoReader.g
     let amap = infoReader.amap
@@ -979,7 +979,7 @@ let FinalTypeDefinitionChecksAtEndOfInferenceScope (infoReader: InfoReader, nenv
            && not tycon.IsFSharpInterfaceTycon
            && not tycon.IsFSharpDelegateTycon then 
 
-            DispatchSlotChecking.CheckImplementationRelationAtEndOfInferenceScope (infoReader, denv, nenv, sink, tycon, isImplementation) 
+            DispatchSlotChecking.CheckImplementationRelationAtEndOfInferenceScope (infoReader, denv, sink, tycon, isImplementation) 
 
 /// Get the methods relevant to determining if a uniquely-identified-override exists based on the syntactic information 
 /// at the member signature prior to type inference. This is used to pre-assign type information if it does 

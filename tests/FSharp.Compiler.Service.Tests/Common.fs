@@ -1,4 +1,4 @@
-[<AutoOpen>]
+﻿[<AutoOpen>]
 module internal FSharp.Compiler.Service.Tests.Common
 
 open System
@@ -140,6 +140,14 @@ let mkTestFileAndOptions additionalArgs =
     let args = Array.append (mkProjectCommandLineArgs (dllName, [])) additionalArgs
     let options = { checker.GetProjectOptionsFromCommandLineArgs (projFileName, args) with SourceFiles = [| fileName |] }
     fileName, options
+
+/// Gets the display context at the location of a symbol use, by checking the file the use occurs in.
+let getDisplayContextForSymbolUse (options: FSharpProjectOptions) (symbolUse: FSharpSymbolUse) =
+    let _, checkResults =
+        checker.GetBackgroundCheckResultsForFileInProject(symbolUse.FileName, options)
+        |> Async.RunSynchronouslyImmediate
+
+    checkResults.GetDisplayContextForPos(symbolUse.Range.End).Value
 
 let parseAndCheckFile fileName source options =
     Range.setTestSource fileName source

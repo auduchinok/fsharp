@@ -145,10 +145,6 @@ type public FSharpSymbolUse =
 
     member GenericArguments: (FSharpGenericParameter * FSharpType) list
 
-    /// The display context active at the point where the symbol is used. Can be passed to FSharpType.Format
-    /// and other methods to format items in a way that is suitable for a specific source code location.
-    member DisplayContext: FSharpDisplayContext
-
     /// Indicates if the reference is a definition for the symbol, either in a signature or implementation
     member IsFromDefinition: bool
 
@@ -188,7 +184,7 @@ type public FSharpSymbolUse =
 
     // For internal use only
     internal new:
-        denv: DisplayEnv * symbol: FSharpSymbol * inst: TyparInstantiation * itemOcc: ItemOccurrence * range: range ->
+        symbol: FSharpSymbol * inst: TyparInstantiation * itemOcc: ItemOccurrence * range: range ->
             FSharpSymbolUse
 
 /// Represents the checking context implied by the ProjectOptions
