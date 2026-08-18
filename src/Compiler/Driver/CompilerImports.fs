@@ -439,7 +439,7 @@ type AssemblyResolution =
 type ImportToken =
     | SharedKey of key: string
     | FrameworkCcu of ccu: CcuThunk
-    | ProjectReference of data: obj * tookOfferedContents: bool
+    | ProjectReference of data: obj * sharedKey: string option * tookOfferedContents: bool
 
 type IProvidesImportedCcu =
 
@@ -447,6 +447,8 @@ type IProvidesImportedCcu =
         callerId: obj * callerTcGlobals: TcGlobals * callerImportToken: (string -> ImportToken option) -> bool
 
     abstract GetImportedCcu: unit -> CcuThunk
+
+    abstract ReferencedAssemblyNames: string list
 
 /// Two projects that resolve an assembly, and everything it can reach, to the same files can share its
 /// Entity graph. Its edges point at the CcuThunks of its own closure, so the key covers all of that.
@@ -2389,7 +2391,7 @@ and [<Sealed>] TcImports
                 }
 
             tcImports.RegisterCcu ccuinfo
-            tcImports.SetImportToken(ilShortAssemName, ProjectReference(box ilModule, true))
+            tcImports.SetImportToken(ilShortAssemName, ProjectReference(box ilModule, shared |> Option.map fst, true))
 
             // Nothing to relink: the contents were built against the same ccus this project has
             let phase2 () = [ ResolvedImportedAssembly(ccuinfo, m) ]
@@ -2528,7 +2530,10 @@ and [<Sealed>] TcImports
         match box ilModule with
         | :? IProvidesImportedCcu ->
             for _, ccuinfo, _ in ccuRawDataAndInfos do
-                tcImports.SetImportToken(ccuinfo.FSharpViewOfMetadata.AssemblyName, ProjectReference(box ilModule, false))
+                tcImports.SetImportToken(
+                    ccuinfo.FSharpViewOfMetadata.AssemblyName,
+                    ProjectReference(box ilModule, shared |> Option.map fst, false)
+                )
         | _ -> ()
 
         let phase2 () =
@@ -2608,6 +2613,13 @@ and [<Sealed>] TcImports
         let reachableAssemblyNames (self: string) (data: IRawFSharpAssemblyData) =
             let names = ResizeArray<string>()
             names.Add self
+
+            // A referenced project reports no assembly references of its own, so ask it: an unpickled copy of
+            // it may only be shared between projects that resolve everything it can reach the same way, and
+            // the key is what compares that.
+            match box data with
+            | :? IProvidesImportedCcu as provider -> names.AddRange provider.ReferencedAssemblyNames
+            | _ -> ()
 
             for aref in data.ILAssemblyRefs do
                 names.Add aref.Name
@@ -2735,11 +2747,10 @@ and [<Sealed>] TcImports
             let ilShortAssemName = assemblyData.ShortAssemblyName
             let ilScopeRef = assemblyData.ILScopeRef
 
-            // A project's own output is never shared, and can share a simple name with a package, so it is
-            // checked here rather than left to the key table
+            // Keys are held by simple name, which a project reference can share with a package
             let shared =
                 match keys with
-                | Some keys when r.ProjectReference.IsNone ->
+                | Some keys ->
                     match keys.TryGetValue(Path.GetFileNameWithoutExtension fileName) with
                     | true, (k, refs) ->
                         let ctx = SharedImportedCcus.SharedImportContext frameworkLayer
@@ -2832,19 +2843,22 @@ and [<Sealed>] TcImports
                 let name = Path.GetFileNameWithoutExtension r.resolvedPath
 
                 if not (ambiguousNames.Contains name) then
+                    let keyOf name =
+                        match keys with
+                        | Some keys ->
+                            match keys.TryGetValue name with
+                            | true, (k, _) -> Some k
+                            | _ -> None
+                        | None -> None
+
                     let token =
                         match r.ProjectReference with
-                        // Whether two projects end up with the same ccu for this one depends on whether
-                        // each takes the contents it offers, which is settled by asking it, not by this
-                        // token; the flag here records what *this* project ended up doing, once it has.
-                        | Some _ -> Some(ProjectReference(box data, false))
-                        | None ->
-                            match keys with
-                            | Some keys ->
-                                match keys.TryGetValue name with
-                                | true, (k, _) -> Some(SharedKey k)
-                                | _ -> None
-                            | None -> None
+                        // Two projects hold the same ccu for this one either because both took the contents
+                        // it offers - settled by asking it, not by this token, and recorded in the flag once
+                        // this project has - or because both unpickle under the key recorded here and meet
+                        // in the cache.
+                        | Some _ -> Some(ProjectReference(box data, keyOf name, false))
+                        | None -> keyOf name |> Option.map SharedKey
 
                     match token with
                     | Some token -> importTokens[name] <- token

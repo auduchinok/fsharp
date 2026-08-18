@@ -117,9 +117,11 @@ type ImportToken =
     /// A framework assembly: its ccu is its own token, the layer being one object per configuration
     | FrameworkCcu of ccu: CcuThunk
 
-    /// A referenced project: the assembly data of one build of it, and whether this project took the
-    /// contents that data offers rather than unpickling its own copy
-    | ProjectReference of data: obj * tookOfferedContents: bool
+    /// A referenced project: the assembly data of one build of it, the key under which this project would
+    /// share an unpickled copy of it, and whether this project took the contents that data offers instead.
+    /// Two projects hold the same ccu for it if either they both took the offered contents, or they unpickle
+    /// under the same key and so meet in the cache.
+    | ProjectReference of data: obj * sharedKey: string option * tookOfferedContents: bool
 
 /// The tree is only usable by a consumer whose import environment is the one it was built against - it
 /// refers to the referencing project's own dependencies as `CcuThunk`s, which unpickling would otherwise
@@ -140,6 +142,10 @@ type IProvidesImportedCcu =
 
     /// The contents in imported form. Only sound for a caller that CanImportInto admits.
     abstract GetImportedCcu: unit -> CcuThunk
+
+    /// The assemblies these contents can reach. A consumer that unpickles its own copy shares it with another
+    /// consumer only if the two resolve all of these the same way, which is what the sharing key compares.
+    abstract ReferencedAssemblyNames: string list
 
 /// Holds the contents imported from a referenced assembly so that projects resolving that assembly, and
 /// everything it can reach, to the same files share one copy of its Entity graph. Switched on per checker

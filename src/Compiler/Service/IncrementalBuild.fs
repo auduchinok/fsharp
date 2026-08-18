@@ -719,6 +719,8 @@ type RawFSharpAssemblyDataBackedByLanguageService (tcConfig, tcGlobals: TcGlobal
     interface IProvidesImportedCcu with
         member this.GetImportedCcu() = importedCcu.Force()
 
+        member _.ReferencedAssemblyNames = importTokens |> List.map fst
+
         member this.CanImportInto(callerId, callerTcGlobals, callerImportToken) =
             // The tree refers to this project's own imported ccus, which unpickling would otherwise rebind
             // through the consumer's TcImports. So it is only usable by a consumer who will end up with the
@@ -733,17 +735,21 @@ type RawFSharpAssemblyDataBackedByLanguageService (tcConfig, tcGlobals: TcGlobal
                        | Some(SharedKey mine), Some(SharedKey theirs) -> mine = theirs
                        | Some(FrameworkCcu mine), Some(FrameworkCcu theirs) -> obj.ReferenceEquals(theirs, mine)
 
-                       // A referenced project of our own. We must have taken its offered contents, the caller
-                       // must be looking at the same build of it, and the caller must be able to take them
-                       // too - which is asked of that project rather than read from the caller, because the
-                       // caller may not have imported it yet.
-                       | Some(ProjectReference(mine, true)), Some(ProjectReference(theirs, _)) when
+                       // A referenced project of our own, which the caller must be looking at the same
+                       // build of, and must end up with the same ccu for. Either we both take its offered
+                       // contents - asked of that project rather than read from the caller, who may not
+                       // have imported it yet - or we both unpickle under the same key and meet in the
+                       // cache.
+                       | Some(ProjectReference(mine, myKey, tookOffered)), Some(ProjectReference(theirs, theirKey, _)) when
                            obj.ReferenceEquals(theirs, mine)
                            ->
-                           match mine with
-                           | :? IProvidesImportedCcu as provider ->
-                               provider.CanImportInto(callerId, callerTcGlobals, callerImportToken)
-                           | _ -> false
+                           if tookOffered then
+                               match mine with
+                               | :? IProvidesImportedCcu as provider ->
+                                   provider.CanImportInto(callerId, callerTcGlobals, callerImportToken)
+                               | _ -> false
+                           else
+                               myKey.IsSome && myKey = theirKey
 
                        | _ -> false)
 
