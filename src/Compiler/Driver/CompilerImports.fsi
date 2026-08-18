@@ -98,6 +98,49 @@ type ResolvedExtensionReference =
     | ResolvedExtensionReference of string * AssemblyReference list * Tainted<ITypeProvider> list
 #endif
 
+/// Implemented by the assembly data of a referenced *project*, which can offer its contents already in
+/// imported form rather than as bytes to unpickle: the project has the tree, and the export remapping that
+/// turns its local references into references into itself is applied whether or not it is then pickled.
+///
+/// The tree is only usable by a consumer whose import environment is the one it was built against - it
+/// refers to the referencing project's own dependencies as `CcuThunk`s, which unpickling would otherwise
+/// rebind through the consumer's `TcImports`. `TryGetImportedCcu` decides that, and a consumer that fails
+/// the test falls back to the pickled path.
+///
+/// Agreement is settled with import tokens rather than by comparing ccus, because the question is asked
+/// while the consumer is still registering its own references, when most of its ccus do not exist yet.
+type ImportToken =
+
+    /// A shared assembly: two projects computing the same key end up with the same ccu
+    | SharedKey of key: string
+
+    /// A framework assembly: its ccu is its own token, the layer being one object per configuration
+    | FrameworkCcu of ccu: CcuThunk
+
+    /// A referenced project: the assembly data of one build of it, and whether this project took the
+    /// contents that data offers rather than unpickling its own copy
+    | ProjectReference of data: obj * tookOfferedContents: bool
+
+/// The tree is only usable by a consumer whose import environment is the one it was built against - it
+/// refers to the referencing project's own dependencies as `CcuThunk`s, which unpickling would otherwise
+/// rebind through the consumer's `TcImports`.
+///
+/// For a dependency that is itself a referenced project, agreement cannot be read off a token: whether two
+/// projects end up with the same ccu for it depends on whether each took *its* offered contents, a decision
+/// the consumer may not have reached yet. So the question is asked of that project recursively, which makes
+/// the answer independent of the order references happen to be imported in - and reference lists arrive
+/// alphabetically, so a project regularly precedes the one it depends on.
+type IProvidesImportedCcu =
+
+    /// Whether the caller's import environment is the one these contents were built against. A pure function
+    /// of what the caller has settled before importing anything, so the caller reaching the same answer later
+    /// is guaranteed.
+    abstract CanImportInto:
+        callerId: obj * callerTcGlobals: TcGlobals * callerImportToken: (string -> ImportToken option) -> bool
+
+    /// The contents in imported form. Only sound for a caller that CanImportInto admits.
+    abstract GetImportedCcu: unit -> CcuThunk
+
 /// Holds the contents imported from a referenced assembly so that projects resolving that assembly, and
 /// everything it can reach, to the same files share one copy of its Entity graph. Switched on per checker
 /// by tcConfig.shareImportedAssemblies. Entries are weak, so nothing is retained on a project's behalf
@@ -165,6 +208,14 @@ type TcImports =
     member DllTable: NameMap<ImportedBinary>
 
     member GetImportedAssemblies: unit -> ImportedAssembly list
+
+    /// What a referenced assembly name resolves to here, in a form two projects can compare before either has
+    /// registered anything. See IProvidesImportedCcu.
+    member ImportToken: name: string -> ImportToken option
+
+    /// Records what a name resolved to here once that is known, which for a project reference is the ccu that
+    /// importing it produced
+    member SetImportToken: name: string * token: ImportToken -> unit
 
     member GetCcusInDeclOrder: unit -> CcuThunk list
 

@@ -181,6 +181,11 @@ module internal Rewriting =
     /// Make a remapping table for viewing a module or namespace 'from the outside'
     val ApplyExportRemappingToEntity: TcGlobals -> Remap -> ModuleOrNamespace -> ModuleOrNamespace
 
+    /// Bring a just-exported signature to the shape a consumer would get by unpickling it: no value
+    /// definitions, no display-only representation info, no compiled-representation cache from the defining
+    /// assembly's own scope. Mutates the tree, so only for one straight out of ApplyExportRemappingToEntity.
+    val PruneExportedSignatureInPlace: ModuleOrNamespace -> ModuleOrNamespace
+
 [<AutoOpen>]
 module internal TupleCompilation =
 

@@ -3,6 +3,8 @@
 namespace FSharp.Compiler.CodeAnalysis
 
 open System
+open System.Collections.Concurrent
+open System.Runtime.CompilerServices
 open System.Collections.Generic
 open System.Collections.Immutable
 open System.Diagnostics
@@ -14,6 +16,7 @@ open FSharp.Compiler
 open FSharp.Compiler.AbstractIL.IL
 open FSharp.Compiler.AbstractIL.ILBinaryReader
 open FSharp.Compiler.CheckBasics
+open FSharp.Compiler.CompilerGlobalState
 open FSharp.Compiler.CheckDeclarations
 open FSharp.Compiler.CompilerConfig
 open FSharp.Compiler.CompilerDiagnostics
@@ -634,13 +637,66 @@ module Utilities =
 /// as a cross-assembly reference.  Note the assembly has not been generated on disk, so this is
 /// a virtualized view of the assembly contents as computed by background checking.
 [<Sealed>]
-type RawFSharpAssemblyDataBackedByLanguageService (tcConfig, tcGlobals, generatedCcu: CcuThunk, outfile, topAttrs, assemblyName, ilAssemRef) =
+type RawFSharpAssemblyDataBackedByLanguageService (tcConfig, tcGlobals: TcGlobals, generatedCcu: CcuThunk, outfile, topAttrs, assemblyName, ilAssemRef, importTokens: (string * ImportToken option) list) =
 
-    let exportRemapping = MakeExportRemapping generatedCcu generatedCcu.Contents
-
+    // Lazy, because a project that nothing references never needs this, and the top project of a solution
+    // never does: both the remapping and the pickling walk the whole signature. A failure now surfaces when a
+    // consumer first asks for the data rather than while this object is built, so it is reported as an error
+    // opening the reference instead of degrading to reading the assembly from disk.
     let sigData =
-        let _sigDataAttributes, sigDataResources = EncodeSignatureData(tcConfig, tcGlobals, exportRemapping, generatedCcu, outfile, true)
-        GetResourceNameAndSignatureDataFuncs sigDataResources
+        lazy
+            (let exportRemapping = MakeExportRemapping generatedCcu generatedCcu.Contents
+
+             let _sigDataAttributes, sigDataResources =
+                 EncodeSignatureData(tcConfig, tcGlobals, exportRemapping, generatedCcu, outfile, true)
+
+             GetResourceNameAndSignatureDataFuncs sigDataResources)
+
+    // The contents in imported form: what a consumer gets by unpickling, without anything being pickled. The
+    // export remapping rewrites local references into references into a ccu, so it is applied against a ccu
+    // made for this view rather than against the project's own - the tree then refers to itself, and holding
+    // it does not reach the project's live contents.
+    /// One answer per asking project, computed once
+    let answers = ConditionalWeakTable<obj, bool ref>()
+
+    let importedCcu =
+        lazy
+            (let viewedCcu = CcuThunk.CreateDelayed assemblyName
+
+             let contents =
+                 MakeExportRemapping viewedCcu generatedCcu.Contents
+                 |> fun remapping -> ApplyExportRemappingToEntity tcGlobals remapping generatedCcu.Contents
+                 |> PruneExportedSignatureInPlace
+
+             let ccuData: CcuData =
+                 {
+                     ILScopeRef = ILScopeRef.Assembly ilAssemRef
+                     Stamp = newStamp ()
+                     FileName = Some outfile
+                     QualifiedName = Some (ILScopeRef.Assembly ilAssemRef).QualifiedName
+                     SourceCodeDirectory = tcConfig.implicitIncludeDir
+                     IsFSharp = true
+                     Contents = contents
+#if !NO_TYPEPROVIDERS
+                     InvalidateEvent = (Event<string>()).Publish
+                     IsProviderGenerated = false
+                     // A project generating provided types never gets this far: FinalizeTypeCheckTask reports
+                     // its assembly data as unavailable
+                     ImportProvidedType = (fun _ -> error (InternalError("a shared project reference cannot import provided types", range0)))
+#endif
+                     // No reader behind a project reference, so nothing here can be disposed underneath a
+                     // consumer that outlives this project
+                     TryGetILModuleDef = (fun () -> None)
+                     UsesFSharp20PlusQuotations = generatedCcu.UsesFSharp20PlusQuotations
+                     MemberSignatureEquality = (fun ty1 ty2 -> typeEquivAux EraseAll tcGlobals ty1 ty2)
+                     // As GetRawTypeForwarders does for the pickled path
+                     TypeForwarders = CcuTypeForwarderTable.Empty
+                     XmlDocumentationInfo = None
+                     CSharpStyleExtensionMembersCache = ConcurrentDictionary(1, 0)
+                 }
+
+             viewedCcu.Fixup(CcuThunk.Create(assemblyName, ccuData))
+             viewedCcu)
 
     let autoOpenAttrs, ivtAttrs =
         let mutable autoOpen = []
@@ -660,11 +716,52 @@ type RawFSharpAssemblyDataBackedByLanguageService (tcConfig, tcGlobals, generate
 
         List.rev autoOpen, List.rev ivt
 
+    interface IProvidesImportedCcu with
+        member this.GetImportedCcu() = importedCcu.Force()
+
+        member this.CanImportInto(callerId, callerTcGlobals, callerImportToken) =
+            // The tree refers to this project's own imported ccus, which unpickling would otherwise rebind
+            // through the consumer's TcImports. So it is only usable by a consumer who will end up with the
+            // same ccu for each of them - which import tokens settle - and whose TcGlobals is this one, since
+            // the types in the tree are normalised through it. Projects on different target frameworks fail
+            // the second test, correctly: theirs is a different view of the framework.
+            let compute () =
+                obj.ReferenceEquals(callerTcGlobals, tcGlobals)
+                && importTokens
+                   |> List.forall (fun (name, token) ->
+                       match token, callerImportToken name with
+                       | Some(SharedKey mine), Some(SharedKey theirs) -> mine = theirs
+                       | Some(FrameworkCcu mine), Some(FrameworkCcu theirs) -> obj.ReferenceEquals(theirs, mine)
+
+                       // A referenced project of our own. We must have taken its offered contents, the caller
+                       // must be looking at the same build of it, and the caller must be able to take them
+                       // too - which is asked of that project rather than read from the caller, because the
+                       // caller may not have imported it yet.
+                       | Some(ProjectReference(mine, true)), Some(ProjectReference(theirs, _)) when
+                           obj.ReferenceEquals(theirs, mine)
+                           ->
+                           match mine with
+                           | :? IProvidesImportedCcu as provider ->
+                               provider.CanImportInto(callerId, callerTcGlobals, callerImportToken)
+                           | _ -> false
+
+                       | _ -> false)
+
+            // Memoised per caller, which also breaks any cycle: the cell is in place before the recursion
+            // starts, so a project that somehow reached itself reads false and refuses rather than looping.
+            match answers.TryGetValue callerId with
+            | true, cached -> cached.Value
+            | _ ->
+                let answer = ref false
+                answers.Add(callerId, answer)
+                answer.Value <- compute ()
+                answer.Value
+
     interface IRawFSharpAssemblyData with
         member _.GetAutoOpenAttributes() = autoOpenAttrs
         member _.GetInternalsVisibleToAttributes() =  ivtAttrs
         member _.TryGetILModuleDef() = None
-        member _.GetRawFSharpSignatureData(_m, _ilShortAssemName, _filename) = sigData
+        member _.GetRawFSharpSignatureData(_m, _ilShortAssemName, _filename) = sigData.Force()
         member _.GetRawFSharpOptimizationData(_m, _ilShortAssemName, _filename) = [ ]
         member _.GetRawTypeForwarders() = mkILExportedTypes []  // TODO: cross-project references with type forwarders
         member _.ShortAssemblyName = assemblyName
@@ -867,7 +964,23 @@ module IncrementalBuilderHelpers =
                         if tcState.CreatesGeneratedProvidedTypes || hasTypeProviderAssemblyAttrib then
                             ProjectAssemblyDataResult.Unavailable true
                         else
-                            ProjectAssemblyDataResult.Available (RawFSharpAssemblyDataBackedByLanguageService (tcConfig, tcGlobals, generatedCcu, outfile, topAttrs, assemblyName, ilAssemRef) :> IRawFSharpAssemblyData)
+                            // What this project's references resolve to, so a consumer can tell whether the
+                            // contents can be handed over as they are rather than pickled and unpickled
+                            let importTokens =
+                                match Seq.tryHead computedBoundModels with
+                                | Some boundModel ->
+                                    let tcImports = boundModel.TcImports
+
+                                    // Every import, including those with no token: an assembly this project
+                                    // did not share cannot be matched, and a consumer that would end up with
+                                    // its own copy of it must not take these contents, which refer to ours
+                                    tcImports.GetImportedAssemblies()
+                                    |> List.map (fun ia ->
+                                        let name = ia.FSharpViewOfMetadata.AssemblyName
+                                        name, tcImports.ImportToken name)
+                                | None -> []
+
+                            ProjectAssemblyDataResult.Available (RawFSharpAssemblyDataBackedByLanguageService (tcConfig, tcGlobals, generatedCcu, outfile, topAttrs, assemblyName, ilAssemRef, importTokens) :> IRawFSharpAssemblyData)
                     with exn ->
                         errorRecoveryNoRange exn
                         ProjectAssemblyDataResult.Unavailable true

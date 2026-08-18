@@ -1022,6 +1022,37 @@ module internal Rewriting =
         let ctxt = mkRemapContext g (StackGuard("RemapExprStackGuardDepth"))
         remapTyconToNonLocal ctxt tmenv x
 
+    /// Bring an exported signature to the shape a consumer would get by unpickling it. The remapping copies
+    /// the whole of what it is given, and a few parts of that are the defining assembly's own business:
+    /// unpickling drops value definitions and the display-only representation info (u_ValData writes them as
+    /// None), and a compiled-representation cache belongs to the scope it was computed in, which for the
+    /// defining assembly is its own rather than the one a consumer views it through.
+    ///
+    /// Only for a tree that has just been produced by ApplyExportRemappingToEntity, whose entities and values
+    /// are fresh copies - it mutates them.
+    let PruneExportedSignatureInPlace (mspec: ModuleOrNamespace) =
+        let rec pruneEntity (entity: Entity) =
+            entity.entity_il_repr_cache <- null
+
+            if entity.IsModuleOrNamespace then
+                pruneContents entity.ModuleOrNamespaceType
+
+        and pruneContents (mty: ModuleOrNamespaceType) =
+            for v in mty.AllValsAndMembers do
+                match v.val_opt_data with
+                | Some optData ->
+                    optData.val_defn <- None
+                    optData.val_repr_info_for_display <- None
+                    optData.arg_repr_info_for_display <- None
+                    optData.val_other_xmldoc <- None
+                | None -> ()
+
+            for e in mty.AllEntities do
+                pruneEntity e
+
+        pruneEntity mspec
+        mspec
+
     (* Which constraints actually get compiled to .NET constraints? *)
     let isCompiledOrWitnessPassingConstraint (g: TcGlobals) cx =
         match cx with

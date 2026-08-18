@@ -1872,7 +1872,11 @@ type internal TransparentCompiler
                                     bootstrapInfo.OutFile,
                                     topAttrs,
                                     bootstrapInfo.AssemblyName,
-                                    ilAssemRef
+                                    ilAssemRef,
+                                    // Handing the contents over in imported form is only offered by the
+                                    // background compiler for now, so nothing to compare an environment
+                                    // against here
+                                    []
                                 )
                                 :> IRawFSharpAssemblyData
                             )

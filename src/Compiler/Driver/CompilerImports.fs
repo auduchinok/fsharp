@@ -11,6 +11,7 @@ open System.Diagnostics
 open System.IO
 open System.IO.Compression
 open System.Reflection
+open System.Runtime.CompilerServices
 
 open Internal.Utilities
 open Internal.Utilities.Collections
@@ -433,6 +434,20 @@ type AssemblyResolution =
 
 /// Shares the imported form of an assembly between projects.
 ///
+/// Implemented by the assembly data of a referenced *project*, which can offer its contents already in
+/// imported form rather than as bytes to unpickle. See the signature file for what makes that sound.
+type ImportToken =
+    | SharedKey of key: string
+    | FrameworkCcu of ccu: CcuThunk
+    | ProjectReference of data: obj * tookOfferedContents: bool
+
+type IProvidesImportedCcu =
+
+    abstract CanImportInto:
+        callerId: obj * callerTcGlobals: TcGlobals * callerImportToken: (string -> ImportToken option) -> bool
+
+    abstract GetImportedCcu: unit -> CcuThunk
+
 /// Two projects that resolve an assembly, and everything it can reach, to the same files can share its
 /// Entity graph. Its edges point at the CcuThunks of its own closure, so the key covers all of that.
 module internal SharedImportedCcus =
@@ -555,6 +570,22 @@ module internal SharedImportedCcus =
     /// internally consistent
     let add (key: string) (ccu: CcuThunk) =
         cache[key] <- WeakReference<CcuThunk> ccu
+
+    /// A stable id for an object, for keys that have to name one without an identity hash's collisions.
+    /// Weak, so naming an assembly data object does not keep it alive.
+    let private objectIds = ConditionalWeakTable<obj, string>()
+
+    let mutable private nextObjectId = 0
+
+    let identityOf (o: obj) =
+        lock objectIds (fun () ->
+            match objectIds.TryGetValue o with
+            | true, id -> id
+            | _ ->
+                nextObjectId <- nextObjectId + 1
+                let id = sprintf "obj:%d" nextObjectId
+                objectIds.Add(o, id)
+                id)
 
     let clear () = cache.Clear()
 
@@ -1355,6 +1386,10 @@ and [<Sealed>] TcImports
     /// collection, and aliasing two import layers would silently mix their ccus
     let stamp = newStamp ()
 
+    /// Filled in as each batch of references is resolved, before any of it is registered; see ImportToken
+    let importTokens =
+        ConcurrentDictionary<string, ImportToken>(StringComparer.OrdinalIgnoreCase)
+
     //---- Start protected by tciLock -------
     let mutable resolutions = initialResolutions
     let mutable dllInfos: ImportedBinary list = []
@@ -1498,8 +1533,32 @@ and [<Sealed>] TcImports
 
     member _.Stamp = stamp
 
+    /// Records the outcome of importing a referenced project: whether its offered contents were taken
+    member _.SetImportToken(name: string, token: ImportToken) = importTokens[name] <- token
+
+    /// What each referenced assembly name will resolve to, in a form two projects can compare before
+    /// either has registered anything: the sharing key of a shared assembly, or - once imported - the
+    /// ccu produced for a project reference. Equal tokens mean the two projects end up with the same ccu.
+    member tcImports.ImportToken(name: string) =
+        match importTokens.TryGetValue name with
+        | true, token -> Some token
+        | _ ->
+            // A framework assembly is registered before any project batch and comes from a layer that is
+            // one object per configuration, so its ccu is its own token
+            let layer =
+                match importsBase with
+                | Some b -> b
+                | None -> tcImports
+
+            match NameMap.tryFind name layer.CcuTable with
+            | Some(ia: ImportedAssembly) -> Some(FrameworkCcu ia.FSharpViewOfMetadata)
+            | None ->
+                match importsBase with
+                | Some b -> b.ImportToken name
+                | None -> None
+
     /// The layer a sharing key pins by stamp, and so the only one a shared ccu may close over
-    member tcImports.KeyPinnedLayer =
+    member tcImports.KeyPinnedLayer: TcImports =
         match importsBase with
         | Some b -> b
         | None -> tcImports
@@ -2299,6 +2358,45 @@ and [<Sealed>] TcImports
         let optDataReaders =
             ilModule.GetRawFSharpOptimizationData(m, ilShortAssemName, fileName)
 
+        // A referenced project already holds its contents in imported form. Taking them means no pickling on
+        // its side and no unpickling here, but only if this project's import environment is the one they were
+        // built against - which the reference itself decides, comparing its imported ccus with ours by
+        // identity. Anything else falls through to the pickled path below.
+        let importedDirectly =
+            match box ilModule with
+            // Under the same setting as sharing imported assemblies, which is also what makes the tokens of
+            // two projects agree in the first place
+            | :? IProvidesImportedCcu as provider when tcConfig.shareImportedAssemblies ->
+                if provider.CanImportInto(box tcImports, tcImports.GetTcGlobals(), tcImports.ImportToken) then
+                    Some(provider.GetImportedCcu())
+                else
+                    None
+            | _ -> None
+
+        match importedDirectly with
+        | Some ccu ->
+            let ccuinfo =
+                {
+                    FSharpViewOfMetadata = ccu
+                    AssemblyAutoOpenAttributes = ilModule.GetAutoOpenAttributes()
+                    AssemblyInternalsVisibleToAttributes = ilModule.GetInternalsVisibleToAttributes()
+                    FSharpOptimizationData = notlazy None
+#if !NO_TYPEPROVIDERS
+                    IsProviderGenerated = false
+                    TypeProviders = []
+#endif
+                    ILScopeRef = ilScopeRef
+                }
+
+            tcImports.RegisterCcu ccuinfo
+            tcImports.SetImportToken(ilShortAssemName, ProjectReference(box ilModule, true))
+
+            // Nothing to relink: the contents were built against the same ccus this project has
+            let phase2 () = [ ResolvedImportedAssembly(ccuinfo, m) ]
+            phase2
+
+        | None ->
+
         let ccuRawDataAndInfos =
             ilModule.GetRawFSharpSignatureData(m, ilShortAssemName, fileName)
             |> List.map (fun (ccuName, (sigDataReader, sigDataReaderB)) ->
@@ -2425,6 +2523,14 @@ and [<Sealed>] TcImports
         // Register all before relinking to cope with mutually-referential ccus
         ccuRawDataAndInfos |> List.iter (p23 >> tcImports.RegisterCcu)
 
+        // A project reference imported the long way round: this project holds its own copy, so nobody else
+        // can take contents built against it
+        match box ilModule with
+        | :? IProvidesImportedCcu ->
+            for _, ccuinfo, _ in ccuRawDataAndInfos do
+                tcImports.SetImportToken(ccuinfo.FSharpViewOfMetadata.AssemblyName, ProjectReference(box ilModule, false))
+        | _ -> ()
+
         let phase2 () =
             // Relink
             ccuRawDataAndInfos
@@ -2526,16 +2632,21 @@ and [<Sealed>] TcImports
                 |> List.exists (fun a -> a.Method.DeclaringType.BasicQualifiedName.Contains "TypeProviderAssembly")
             | None -> false
 
-        /// The file an assembly resolved to, as ILModuleReaderCacheKey identifies one. ILAssemblyRef cannot
-        /// separate one package's builds for different target frameworks, which differ only in content.
-        let fileIdentity (r: AssemblyResolution) =
-            let writeStamp =
-                try
-                    string (FileSystem.GetLastWriteTimeShim r.resolvedPath).Ticks
-                with _ ->
-                    "nostamp"
+        /// What an assembly resolved to: for a file, its path and last write time, as ILModuleReaderCacheKey
+        /// identifies one - ILAssemblyRef cannot separate one package's builds for different target
+        /// frameworks, which differ only in content. A project reference has no file, and is identified by
+        /// the assembly data of one build of it, which every consumer of that build is handed.
+        let resolvedIdentity (r: AssemblyResolution) (data: IRawFSharpAssemblyData) =
+            match r.ProjectReference with
+            | Some _ -> SharedImportedCcus.identityOf (box data)
+            | None ->
+                let writeStamp =
+                    try
+                        string (FileSystem.GetLastWriteTimeShim r.resolvedPath).Ticks
+                    with _ ->
+                        "nostamp"
 
-            r.resolvedPath + "|" + writeStamp
+                r.resolvedPath + "|" + writeStamp
 
         let sharedKeys (all: (AssemblyResolution * IRawFSharpAssemblyData) list) =
             let tcConfig = tcConfigP.Get ctok
@@ -2567,12 +2678,12 @@ and [<Sealed>] TcImports
             for r, data in all do
                 let name = short r.resolvedPath
                 let refs, isMultiModule = reachableAssemblyNames name data
-                assemblies[name] <- fileIdentity r, refs
+                assemblies[name] <- resolvedIdentity r data, refs
 
-                // A project's own output changes with every build, and phase2 adds provided namespaces into
-                // a type provider assembly's contents
-                if r.ProjectReference.IsNone
-                   && not isMultiModule
+                // Being in here means the key pins this assembly's identity, so anything referencing it can
+                // still be shared. A project reference qualifies even though it is never itself cached:
+                // registerDll refuses it, and the project hands its contents over directly instead.
+                if not isMultiModule
                    && not (ambiguous.Contains name)
                    && not (isTypeProviderAssembly data) then
                     shareable.Add name |> ignore
@@ -2703,6 +2814,41 @@ and [<Sealed>] TcImports
                     Some(sharedKeys resolved)
                 else
                     None
+
+            // Record what each name in this batch resolves to, before anything is registered, so that a
+            // referenced project can be asked whether this project's import environment is the one its
+            // contents were built against.
+            //
+            // Names claimed by more than one resolution get no token: tokens are compared by name, and a
+            // solution over several target frameworks references two builds of one package at once, so
+            // agreeing on the name would not mean agreeing on the assembly.
+            let ambiguousNames =
+                resolved
+                |> List.countBy (fun (r, _) -> Path.GetFileNameWithoutExtension r.resolvedPath)
+                |> List.choose (fun (name, n) -> if n > 1 then Some name else None)
+                |> fun names -> HashSet<string>(names, StringComparer.OrdinalIgnoreCase)
+
+            for r, data in resolved do
+                let name = Path.GetFileNameWithoutExtension r.resolvedPath
+
+                if not (ambiguousNames.Contains name) then
+                    let token =
+                        match r.ProjectReference with
+                        // Whether two projects end up with the same ccu for this one depends on whether
+                        // each takes the contents it offers, which is settled by asking it, not by this
+                        // token; the flag here records what *this* project ended up doing, once it has.
+                        | Some _ -> Some(ProjectReference(box data, false))
+                        | None ->
+                            match keys with
+                            | Some keys ->
+                                match keys.TryGetValue name with
+                                | true, (k, _) -> Some(SharedKey k)
+                                | _ -> None
+                            | None -> None
+
+                    match token with
+                    | Some token -> importTokens[name] <- token
+                    | None -> ()
 
             let phase2s = resolved |> List.map (registerDll keys)
 
