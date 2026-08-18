@@ -1022,6 +1022,46 @@ module internal Rewriting =
         let ctxt = mkRemapContext g (StackGuard("RemapExprStackGuardDepth"))
         remapTyconToNonLocal ctxt tmenv x
 
+    let PruneAndRescopeExportedSignatureInPlace (ilScopeRef: ILScopeRef) (mspec: ModuleOrNamespace) =
+        // Local stands for the assembly being compiled, and u_ILScopeRef turns it into the assembly
+        // read from. Without that round trip `internal` here would be internal to the consumer.
+        let rescopeCompPath (CompPath(scoref, _, path)) =
+            CompPath(rescopeILScopeRef ilScopeRef scoref, SyntaxAccess.Unknown, path)
+
+        let rescopeAccess access =
+            match access with
+            | TAccess [] -> access
+            | TAccess paths -> TAccess(List.map rescopeCompPath paths)
+
+        let rec pruneEntity (entity: Entity) =
+            entity.entity_il_repr_cache <- null
+            entity.entity_cpath <- entity.entity_cpath |> Option.map rescopeCompPath
+
+            match entity.entity_opt_data with
+            | Some optData ->
+                optData.entity_accessibility <- rescopeAccess optData.entity_accessibility
+                optData.entity_tycon_repr_accessibility <- rescopeAccess optData.entity_tycon_repr_accessibility
+            | None -> ()
+
+            pruneContents entity.ModuleOrNamespaceType
+
+        and pruneContents (mty: ModuleOrNamespaceType) =
+            for v in mty.AllValsAndMembers do
+                match v.val_opt_data with
+                | Some optData ->
+                    optData.val_defn <- None
+                    optData.val_repr_info_for_display <- None
+                    optData.arg_repr_info_for_display <- None
+                    optData.val_other_xmldoc <- None
+                    optData.val_access <- rescopeAccess optData.val_access
+                | None -> ()
+
+            for e in mty.AllEntities do
+                pruneEntity e
+
+        pruneEntity mspec
+        mspec
+
     (* Which constraints actually get compiled to .NET constraints? *)
     let isCompiledOrWitnessPassingConstraint (g: TcGlobals) cx =
         match cx with

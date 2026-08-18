@@ -468,7 +468,7 @@ module internal SharedImportedCcus =
     /// Weak: an entry is held by the projects using it, and holds the rest of its own closure
     let private cache = ConcurrentDictionary<SharedCcuKey, WeakReference<CcuThunk>>()
 
-    let private nameComparer = StringComparer.OrdinalIgnoreCase
+    let nameComparer = StringComparer.OrdinalIgnoreCase
 
     /// What a shared ccu may close over besides its own closure. Functions because TcImports comes later.
     type FrameworkLayer =
@@ -601,6 +601,14 @@ module internal SharedImportedCcus =
 
     let clear () = cache.Clear()
 
+type ImportIdentity =
+    | SharedKey of key: SharedImportedCcus.SharedCcuKey
+    | ProjectOutput of provider: WeakReference<IImportedCcuProvider> * tookOfferedContents: bool
+
+and IImportedCcuProvider =
+    abstract CanImportInto: callerId: obj * callerTcGlobals: TcGlobals * callerImportIdentity: (string -> ImportIdentity option) -> bool
+    abstract GetImportedCcu: unit -> CcuThunk
+
 type ImportedBinary =
     {
         FileName: string
@@ -625,6 +633,19 @@ type ImportedAssembly =
         mutable TypeProviders: Tainted<ITypeProvider> list
 #endif
         FSharpOptimizationData: InterruptibleLazy<Optimizer.LazyModuleInfo option>
+    }
+
+let mkImportedAssembly (data: IRawFSharpAssemblyData) ilScopeRef ccu optimizationData =
+    {
+        FSharpViewOfMetadata = ccu
+        AssemblyAutoOpenAttributes = data.GetAutoOpenAttributes()
+        AssemblyInternalsVisibleToAttributes = data.GetInternalsVisibleToAttributes()
+        FSharpOptimizationData = optimizationData
+#if !NO_TYPEPROVIDERS
+        IsProviderGenerated = false
+        TypeProviders = []
+#endif
+        ILScopeRef = ilScopeRef
     }
 
 type AvailableImportedAssembly =
@@ -1398,6 +1419,9 @@ and [<Sealed>] TcImports
     /// silently mix their ccus
     let stamp = newStamp ()
 
+    let importIdentities =
+        ConcurrentDictionary<string, ImportIdentity>(SharedImportedCcus.nameComparer)
+
     //---- Start protected by tciLock -------
     let mutable resolutions = initialResolutions
     let mutable dllInfos: ImportedBinary list = []
@@ -1542,6 +1566,11 @@ and [<Sealed>] TcImports
     member _.Stamp = stamp
 
     member _.GetImportReuseKey ctok = (tcConfigP.Get ctok).importReuseKey
+
+    member _.ImportIdentity(name: string) =
+        match importIdentities.TryGetValue name with
+        | true, identity -> Some identity
+        | _ -> None
 
     member tcImports.KeyPinnedLayer =
         match importsBase with
@@ -2313,6 +2342,25 @@ and [<Sealed>] TcImports
 
         phase2
 
+    /// A referenced project can offer its contents already imported, skipping the pickled round trip
+    member tcImports.TryImportOfferedCcu(ctok, m, assemblyData: IRawFSharpAssemblyData, ilScopeRef) =
+        match assemblyData with
+        | :? IImportedCcuProvider as provider when (tcConfigP.Get ctok).shareImportedAssemblies ->
+            if provider.CanImportInto(tcImports :> obj, tcImports.GetTcGlobals(), tcImports.ImportIdentity) then
+                let ccuinfo =
+                    mkImportedAssembly assemblyData ilScopeRef (provider.GetImportedCcu()) (notlazy None)
+
+                tcImports.RegisterCcu ccuinfo
+
+                // The identity recorded before importing assumed our own copy
+                importIdentities[assemblyData.ShortAssemblyName] <- ProjectOutput(WeakReference<_> provider, true)
+
+                // Nothing to relink: built against the ccus this project has
+                Some(fun () -> [ ResolvedImportedAssembly(ccuinfo, m) ])
+            else
+                None
+        | _ -> None
+
     member tcImports.PrepareToImportReferencedFSharpAssembly
         (ctok, m, fileName, dllinfo: ImportedBinary, ?shared: SharedImportedCcus.SharedImport)
         =
@@ -2425,18 +2473,7 @@ and [<Sealed>] TcImports
 
                             Some(fixupThunk ()))
 
-                let ccuinfo =
-                    {
-                        FSharpViewOfMetadata = ccu
-                        AssemblyAutoOpenAttributes = ilModule.GetAutoOpenAttributes()
-                        AssemblyInternalsVisibleToAttributes = ilModule.GetInternalsVisibleToAttributes()
-                        FSharpOptimizationData = optdata
-#if !NO_TYPEPROVIDERS
-                        IsProviderGenerated = false
-                        TypeProviders = []
-#endif
-                        ILScopeRef = ilScopeRef
-                    }
+                let ccuinfo = mkImportedAssembly ilModule ilScopeRef ccu optdata
 
                 let phase2 () =
 #if !NO_TYPEPROVIDERS
@@ -2696,17 +2733,21 @@ and [<Sealed>] TcImports
                 tcImports.RegisterDll dllinfo
 
                 let phase2 =
-                    if assemblyData.HasAnyFSharpSignatureDataAttribute then
-                        if not assemblyData.HasMatchingFSharpSignatureDataAttribute then
-                            errorR (Error(FSComp.SR.buildDifferentVersionMustRecompile fileName, m))
-                            tcImports.PrepareToImportReferencedILAssembly(ctok, m, fileName, dllinfo, ?shared = shared)
+                    match tcImports.TryImportOfferedCcu(ctok, m, assemblyData, ilScopeRef) with
+                    | Some phase2 -> phase2
+                    | None ->
+
+                        if assemblyData.HasAnyFSharpSignatureDataAttribute then
+                            if not assemblyData.HasMatchingFSharpSignatureDataAttribute then
+                                errorR (Error(FSComp.SR.buildDifferentVersionMustRecompile fileName, m))
+                                tcImports.PrepareToImportReferencedILAssembly(ctok, m, fileName, dllinfo, ?shared = shared)
+                            else
+                                try
+                                    tcImports.PrepareToImportReferencedFSharpAssembly(ctok, m, fileName, dllinfo, ?shared = shared)
+                                with e ->
+                                    error (Error(FSComp.SR.buildErrorOpeningBinaryFile (fileName, e.Message), m))
                         else
-                            try
-                                tcImports.PrepareToImportReferencedFSharpAssembly(ctok, m, fileName, dllinfo, ?shared = shared)
-                            with e ->
-                                error (Error(FSComp.SR.buildErrorOpeningBinaryFile (fileName, e.Message), m))
-                    else
-                        tcImports.PrepareToImportReferencedILAssembly(ctok, m, fileName, dllinfo, ?shared = shared)
+                            tcImports.PrepareToImportReferencedILAssembly(ctok, m, fileName, dllinfo, ?shared = shared)
 
                 async { return phase2 () }
 
@@ -2741,6 +2782,32 @@ and [<Sealed>] TcImports
                     Some(sharedKeys resolved)
                 else
                     None
+
+            // Recorded before anything is registered, so a referenced project can be asked about our
+            // environment. Keyed by assembly name, which is how a consumer looks an import up.
+            let ambiguousAssemblyNames =
+                resolved
+                |> List.countBy (fun (_, data: IRawFSharpAssemblyData) -> data.ShortAssemblyName)
+                |> List.choose (fun (name, n) -> if n > 1 then Some name else None)
+                |> fun names -> HashSet<_>(names, SharedImportedCcus.nameComparer)
+
+            for r, data in resolved do
+                let name = data.ShortAssemblyName
+
+                // Two resolutions claiming one name are not one assembly, so neither gets an identity
+                if not (ambiguousAssemblyNames.Contains name) then
+                    let identity =
+                        match data with
+                        // Whether we take its offer is settled later, by asking it
+                        | :? IImportedCcuProvider as provider -> Some(ProjectOutput(WeakReference<_> provider, false))
+                        | _ ->
+                            keys
+                            |> Option.bind (fun keys ->
+                                match keys.TryGetValue(Path.GetFileNameWithoutExtension r.resolvedPath) with
+                                | true, shareable -> Some(SharedKey shareable.Key)
+                                | _ -> None)
+
+                    identity |> Option.iter (fun identity -> importIdentities[name] <- identity)
 
             let phase2s = resolved |> List.map (registerDll keys)
 

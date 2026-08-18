@@ -150,10 +150,12 @@ type internal RawFSharpAssemblyDataBackedByLanguageService =
         outfile: string *
         topAttrs: TopAttribs *
         assemblyName: string *
-        ilAssemRef: IL.ILAssemblyRef ->
+        ilAssemRef: IL.ILAssemblyRef *
+        importIdentities: (string * ImportIdentity option) list option ->
             RawFSharpAssemblyDataBackedByLanguageService
 
     interface IRawFSharpAssemblyData
+    interface IImportedCcuProvider
 
 /// Manages an incremental build graph for the build of an F# project
 [<Class>]

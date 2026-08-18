@@ -102,7 +102,28 @@ type ResolvedExtensionReference =
 /// everything it can reach, to the same files. Entries are weak: nothing is retained on a project's behalf.
 module internal SharedImportedCcus =
 
+    type SharedCcuKey
+
     val clear: unit -> unit
+
+/// Identities not ccus: the question is asked while the consumer is still registering references
+type ImportIdentity =
+
+    /// Same key, same ccu
+    | SharedKey of key: SharedImportedCcus.SharedCcuKey
+
+    /// Weak: a project's assembly data outlives the builds it was checked against
+    | ProjectOutput of provider: WeakReference<IImportedCcuProvider> * tookOfferedContents: bool
+
+/// Offers a project's contents already imported; a consumer failing CanImportInto unpickles instead
+and IImportedCcuProvider =
+
+    /// Pure in what the caller settled before importing, so the answer holds later
+    abstract CanImportInto:
+        callerId: obj * callerTcGlobals: TcGlobals * callerImportIdentity: (string -> ImportIdentity option) -> bool
+
+    /// Only sound for a caller CanImportInto admits
+    abstract GetImportedCcu: unit -> CcuThunk
 
 /// Represents a resolved imported binary
 [<RequireQualifiedAccess>]
@@ -162,6 +183,10 @@ type TcImports =
     member DllTable: NameMap<ImportedBinary>
 
     member GetImportedAssemblies: unit -> ImportedAssembly list
+
+    /// Comparable before either project has registered anything. Not answered for framework imports:
+    /// two projects sharing a TcGlobals already share the layer itself.
+    member ImportIdentity: name: string -> ImportIdentity option
 
     member GetCcusInDeclOrder: unit -> CcuThunk list
 
