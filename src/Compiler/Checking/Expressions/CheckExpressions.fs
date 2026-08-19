@@ -5968,9 +5968,9 @@ and TcExprUndelayed (cenv: cenv) (overallTy: OverallTy) env tpenv (synExpr: SynE
         TcConstExpr cenv overallTy env m tpenv synConst
 
     | SynExpr.DotLambda (synExpr, m, trivia) ->
-        match env.NameEnv.eUnqualifiedItems |> Map.tryFind "_arg1" with
+        match env.NameEnv.TryFindUnqualifiedItem "_arg1" with
         // Compiler-generated _arg items can have more forms, the real underscore will be 1-character wide
-        | Some (Item.Value(valRef)) when valRef.Range.StartColumn+1 = valRef.Range.EndColumn ->
+        | ValueSome (Item.Value(valRef)) when valRef.Range.StartColumn+1 = valRef.Range.EndColumn ->
             warning(Error(FSComp.SR.tcAmbiguousDiscardDotLambda(), trivia.UnderscoreRange))
         | _ -> ()
 
@@ -12010,8 +12010,8 @@ and TcAttributeEx canFail (cenv: cenv) (env: TcEnv) attrTgt attrEx (synAttr: Syn
                     let rec collect (synExpr: SynExpr) acc =
                         match synExpr with
                         | SynExpr.Ident ident ->
-                            match env.NameEnv.eUnqualifiedItems |> Map.tryFind ident.idText with
-                            | Some(Item.Value vref) when vref.LiteralValue.IsSome ->
+                            match env.NameEnv.TryFindUnqualifiedItem ident.idText with
+                            | ValueSome(Item.Value vref) when vref.LiteralValue.IsSome ->
                                 (ident.idRange, vref) :: acc
                             | _ -> acc
                         | SynExpr.Paren(expr = inner) -> collect inner acc

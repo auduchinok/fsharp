@@ -188,8 +188,11 @@ type NameResolutionEnv =
         /// Display environment information for output
         eDisplayEnv: DisplayEnv
 
-        /// Values and Data Tags available by unqualified name
+        /// Values and Data Tags available by unqualified name, other than local bindings
         eUnqualifiedItems: LayeredMap<string, Item>
+
+        /// Values bound locally inside expressions. Shadows eUnqualifiedItems.
+        eLocalItems: LayeredMap<string, Item>
 
         /// Enclosing type instantiations that are associated with an unqualified type item
         eUnqualifiedEnclosingTypeInsts: TyconRefMap<EnclosingTypeInst>
@@ -242,6 +245,12 @@ type NameResolutionEnv =
     static member Empty: g: TcGlobals -> NameResolutionEnv
     member DisplayEnv: DisplayEnv
     member FindUnqualifiedItem: string -> Item
+
+    /// Look up an unqualified name, locals shadowing anything brought in by opens and module contents
+    member TryFindUnqualifiedItem: nm: string -> Item voption
+
+    /// Every unqualified item in scope, locals shadowing the rest, each name appearing once
+    member AllUnqualifiedItems: seq<Item>
 
 type FullyQualifiedFlag =
     | FullyQualified

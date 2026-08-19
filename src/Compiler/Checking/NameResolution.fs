@@ -400,8 +400,16 @@ type NameResolutionEnv =
     { /// Display environment information for output
       eDisplayEnv: DisplayEnv
 
-      /// Values, functions, methods and other items available by unqualified name
+      /// Values, functions, methods and other items available by unqualified name.
+      /// Extended in bulk when a module or namespace is opened or its contents come into scope, so it
+      /// is large - typically hundreds to thousands of entries.
       eUnqualifiedItems: UnqualifiedItems
+
+      /// Values bound locally inside expressions - let bindings, parameters, pattern variables.
+      /// Held apart from eUnqualifiedItems because it is extended once per binding while checking an
+      /// expression, and adding to a small table copies a far shorter path than adding to a large one.
+      /// Shadows eUnqualifiedItems: a local binding hides anything of the same name that is in scope.
+      eLocalItems: UnqualifiedItems
 
       /// Enclosing type instantiations that are associated with an unqualified type item
       eUnqualifiedEnclosingTypeInsts: TyconRefMap<EnclosingTypeInst>
@@ -469,6 +477,7 @@ type NameResolutionEnv =
           eFieldLabels = Map.empty
           eUnqualifiedRecordOrUnionTypeInsts = TyconRefMap.Empty
           eUnqualifiedItems = LayeredMap.Empty
+          eLocalItems = LayeredMap.Empty
           eUnqualifiedEnclosingTypeInsts = TyconRefMap.Empty
           ePatItems = Map.empty
           eTyconsByAccessNames = LayeredMultiMap.Empty
@@ -481,7 +490,32 @@ type NameResolutionEnv =
 
     member nenv.DisplayEnv = nenv.eDisplayEnv
 
-    member nenv.FindUnqualifiedItem nm = nenv.eUnqualifiedItems[nm]
+    /// Look up an unqualified name, locals shadowing everything brought in by opens and module contents.
+    member nenv.TryFindUnqualifiedItem(nm: string) =
+        match nenv.eLocalItems.TryGetValue nm with
+        | true, item -> ValueSome item
+        | _ ->
+            match nenv.eUnqualifiedItems.TryGetValue nm with
+            | true, item -> ValueSome item
+            | _ -> ValueNone
+
+    member nenv.FindUnqualifiedItem nm =
+        match nenv.TryFindUnqualifiedItem nm with
+        | ValueSome item -> item
+        | ValueNone -> raise (KeyNotFoundException())
+
+    /// Every unqualified item in scope, locals shadowing the rest. Used by completion and by the
+    /// "did you mean" suggestions, both of which want each name once.
+    member nenv.AllUnqualifiedItems =
+        seq {
+            for KeyValue(_, item) in nenv.eLocalItems do
+                item
+
+            for KeyValue(nm, item) in nenv.eUnqualifiedItems do
+                if not (nenv.eLocalItems.ContainsKey nm) then
+                    item
+        }
+
 
     /// Get the table of types, indexed by name and arity
     member nenv.TyconsByDemangledNameAndArity fq =
@@ -869,9 +903,29 @@ let AddValRefsToActivePatternsNameEnv g ePatItems (vref: ValRef) =
 
     ePatItems
 
+/// Everything added to eUnqualifiedItems used to land in the same table as local bindings, so a later
+/// add shadowed an earlier one whichever kind it was. Now that locals are looked up first, an add that
+/// would have overwritten a local has to drop it, or the local would keep winning. Note Map.Remove
+/// rebuilds the path even for a key that is not there, so only remove what is actually shadowed.
+let private dropShadowedLocals (names: seq<string>) (nenv: NameResolutionEnv) =
+    if nenv.eLocalItems.IsEmpty then
+        nenv
+    else
+        let locals =
+            (nenv.eLocalItems, names)
+            ||> Seq.fold (fun tab nm -> if tab.ContainsKey nm then tab.Remove nm else tab)
+
+        if obj.ReferenceEquals(locals, nenv.eLocalItems) then
+            nenv
+        else
+            { nenv with eLocalItems = locals }
+
 /// Add a set of F# values to the environment.
 let AddValRefsToNameEnvWithPriority g bulkAddMode pri nenv (vrefs: ValRef []) =
     if vrefs.Length = 0 then nenv else
+    // Reached only when a module or namespace is opened, which is a declaration-level act: there are
+    // no local bindings in scope to shadow. If that ever stops being true this needs dropShadowedLocals.
+    assert nenv.eLocalItems.IsEmpty
     { nenv with
         eUnqualifiedItems = AddValRefsToItems bulkAddMode nenv.eUnqualifiedItems vrefs
         eIndexedExtensionMembers = (nenv.eIndexedExtensionMembers, vrefs) ||> Array.fold (AddValRefToExtensionMembers pri)
@@ -881,11 +935,11 @@ let AddValRefsToNameEnvWithPriority g bulkAddMode pri nenv (vrefs: ValRef []) =
 let AddValRefToNameEnv g nenv (vref: ValRef) =
     let pri = NextExtensionMethodPriority()
     { nenv with
-        eUnqualifiedItems =
+        eLocalItems =
             if not vref.IsMember then
-                nenv.eUnqualifiedItems.Add (vref.LogicalName, Item.Value vref)
+                nenv.eLocalItems.Add (vref.LogicalName, Item.Value vref)
             else
-                nenv.eUnqualifiedItems
+                nenv.eLocalItems
         eIndexedExtensionMembers = AddValRefToExtensionMembers pri nenv.eIndexedExtensionMembers vref
         ePatItems = AddValRefsToActivePatternsNameEnv g nenv.ePatItems vref }
 
@@ -894,6 +948,7 @@ let AddValRefToNameEnv g nenv (vref: ValRef) =
 let AddActivePatternResultTagsToNameEnv (apinfo: ActivePatternInfo) nenv apOverallTy m =
     if List.isEmpty apinfo.ActiveTags then nenv else
     let apResultNameList = List.indexed apinfo.ActiveTags
+    let nenv = nenv |> dropShadowedLocals apinfo.ActiveTags
     { nenv with
         eUnqualifiedItems =
             (apResultNameList, nenv.eUnqualifiedItems)
@@ -3250,7 +3305,7 @@ let ResolveUnqualifiedTyconRefs nenv tcrefs =
 /// Resolve F# "A.B.C" syntax in expressions
 /// Not all of the sequence will necessarily be swallowed, i.e. we return some identifiers
 /// that may represent further actions, e.g. further lookups.
-let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified m ad nenv (typeNameResInfo: TypeNameResolutionInfo) (id: Ident) (rest: Ident list) isOpenDecl maybeAppliedArgExpr =
+let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified m ad (nenv: NameResolutionEnv) (typeNameResInfo: TypeNameResolutionInfo) (id: Ident) (rest: Ident list) isOpenDecl maybeAppliedArgExpr =
 
     let lookupKind = LookupKind.Expr LookupIsInstance.No
 
@@ -3276,10 +3331,10 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
             let mutable typeError = None
             // Single identifier.  Lookup the unqualified names in the environment
             let envSearch =
-                match nenv.eUnqualifiedItems.TryGetValue id.idText with
+                match nenv.TryFindUnqualifiedItem id.idText with
 
                 // The name is a type name and it has not been clobbered by some other name
-                | true, Item.UnqualifiedType tcrefs ->
+                | ValueSome(Item.UnqualifiedType tcrefs) ->
 
                     // Do not use type names from the environment if an explicit type instantiation is
                     // given and the number of type parameters do not match
@@ -3299,7 +3354,7 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
                         typeError <- Some e
                         None
 
-                | true, res ->
+                | ValueSome res ->
                     let fresh = ResolveUnqualifiedItem ncenv nenv m res
                     match fresh with
                     | Item.Value value ->
@@ -3358,9 +3413,9 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
                     | _ ->
 
                     let suggestNamesAndTypes (addToBuffer: string -> unit) =
-                        for e in nenv.eUnqualifiedItems do
-                            if canSuggestThisItem e.Value then
-                                addToBuffer e.Value.DisplayName
+                        for item in nenv.AllUnqualifiedItems do
+                            if canSuggestThisItem item then
+                                addToBuffer item.DisplayName
 
                         for e in nenv.TyconsByDemangledNameAndArity fullyQualified do
                             if IsEntityAccessible ncenv.amap m ad e.Value then
@@ -3397,12 +3452,12 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
                 match fullyQualified with
                 | FullyQualified -> false
                 | _ ->
-                    match nenv.eUnqualifiedItems.TryGetValue nm with
-                    | true, Item.Value _ -> true
+                    match nenv.TryFindUnqualifiedItem nm with
+                    | ValueSome(Item.Value _) -> true
                     | _ -> false
 
             if ValIsInEnv id.idText then
-              success (emptyEnclosingTypeInst, nenv.eUnqualifiedItems[id.idText], rest)
+              success (emptyEnclosingTypeInst, nenv.FindUnqualifiedItem id.idText, rest)
             else
               // Otherwise modules are searched first. REVIEW: modules and types should be searched together.
               // For each module referenced by 'id', search the module as if it were an F# module and/or a .NET namespace.
@@ -3432,10 +3487,10 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
                     | FullyQualified ->
                         NoResultsOrUsefulErrors
                     | OpenQualified ->
-                        match nenv.eUnqualifiedItems.TryGetValue id.idText with
-                        | true, Item.UnqualifiedType _
-                        | false, _ -> NoResultsOrUsefulErrors
-                        | true, res -> OneSuccess (ResolutionInfo.Empty, ResolveUnqualifiedItem ncenv nenv m res, rest)
+                        match nenv.TryFindUnqualifiedItem id.idText with
+                        | ValueSome(Item.UnqualifiedType _)
+                        | ValueNone -> NoResultsOrUsefulErrors
+                        | ValueSome res -> OneSuccess (ResolutionInfo.Empty, ResolveUnqualifiedItem ncenv nenv m res, rest)
 
                 moduleSearch ad () +++ tyconSearch ad +++ envSearch
 
@@ -3455,7 +3510,7 @@ let rec ResolveExprLongIdentPrim sink (ncenv: NameResolver) first fullyQualified
                             if IsEntityAccessible ncenv.amap m ad tcref then
                                 addToBuffer tcref.DisplayName
 
-                        for KeyValue(_,item) in nenv.eUnqualifiedItems do
+                        for item in nenv.AllUnqualifiedItems do
                             if canSuggestThisItem item then
                                 addToBuffer item.DisplayName
 
@@ -5034,9 +5089,9 @@ let TryToResolveLongIdentAsType (ncenv: NameResolver) (nenv: NameResolutionEnv) 
     | Some id ->
         // Look for values called 'id' that accept the dot-notation
         let ty =
-            match nenv.eUnqualifiedItems.TryGetValue id with
+            match nenv.TryFindUnqualifiedItem id with
                // v.lookup: member of a value
-            | true, v ->
+            | ValueSome v ->
                 match v with
                 | Item.Value x ->
                     let ty = x.Type
@@ -5074,7 +5129,7 @@ let rec ResolvePartialLongIdentPrim (ncenv: NameResolver) (nenv: NameResolutionE
            match fullyQualified with
            | FullyQualified -> []
            | OpenQualified ->
-               nenv.eUnqualifiedItems.Values
+               nenv.AllUnqualifiedItems
                |> Seq.filter (function
                    | Item.UnqualifiedType _ -> false
                    | Item.Value v -> not v.IsMember
@@ -5132,9 +5187,9 @@ let rec ResolvePartialLongIdentPrim (ncenv: NameResolver) (nenv: NameResolutionE
 
         // Look for values called 'id' that accept the dot-notation
         let values, isItemVal =
-            (match nenv.eUnqualifiedItems.TryGetValue id with
+            (match nenv.TryFindUnqualifiedItem id with
                // v.lookup: member of a value
-             | true, v ->
+             | ValueSome v ->
                  match v with
                  | Item.Value x ->
                      let ty = x.Type
@@ -5642,8 +5697,8 @@ let rec GetCompletionForItem (ncenv: NameResolver) (nenv: NameResolutionEnv) m a
 
         |  [] ->
 
-           // Include all the entries in the eUnqualifiedItems table.
-           for uitem in nenv.eUnqualifiedItems.Values do
+           // Include all the entries in the unqualified items tables.
+           for uitem in nenv.AllUnqualifiedItems do
                match uitem with
                | Item.UnqualifiedType _ -> ()
                | _ when not (ItemIsUnseen ad g ncenv.amap m false uitem) ->
@@ -5688,8 +5743,8 @@ let rec GetCompletionForItem (ncenv: NameResolver) (nenv: NameResolutionEnv) m a
                     else Seq.empty)
 
             // Look for values called 'id' that accept the dot-notation
-            match nenv.eUnqualifiedItems.TryGetValue id with
-            | true, Item.Value x ->
+            match nenv.TryFindUnqualifiedItem id with
+            | ValueSome(Item.Value x) ->
                 let ty = x.Type
                 let ty = if x.IsCtorThisVal && isRefCellTy g ty then destRefCellTy g ty else ty
                 yield! ResolvePartialLongIdentInTypeForItem ncenv nenv m ad false rest item ty
