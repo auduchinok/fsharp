@@ -13,9 +13,7 @@ open CancellableTasks
 type InlayTypeHints(parseResults: FSharpParseFileResults, checkResults: FSharpCheckFileResults, symbol: FSharpMemberOrFunctionOrValue) =
 
     let getHintParts (symbol: FSharpMemberOrFunctionOrValue) (symbolUse: FSharpSymbolUse) =
-        let displayContext =
-            checkResults.GetDisplayContextForPos symbolUse.Range.End
-            |> Option.defaultValue FSharpDisplayContext.Empty
+        let displayContext = checkResults.GetDisplayContextAt symbolUse
 
         match symbol.GetReturnTypeRichText displayContext with
         | Some typeInfo ->

@@ -20,7 +20,9 @@ open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.Text
 open Microsoft.CodeAnalysis.Host
 
+open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.EditorServices
+open FSharp.Compiler.Symbols
 open FSharp.Compiler.Syntax
 open FSharp.Compiler.Text
 
@@ -158,6 +160,15 @@ type Document with
     member this.IsFSharpScript = isScriptFile this.FilePath
 
     member this.IsFSharpSignatureFile = isSignatureFile this.FilePath
+
+type FSharpCheckFileResults with
+
+    /// The display context to use when formatting types at the given symbol use, e.g. to shorten
+    /// the names of types that are in scope there. Falls back to an empty context when the results
+    /// carry no typecheck information, in which case types are printed with their full names.
+    member this.GetDisplayContextAt(symbolUse: FSharpSymbolUse) =
+        this.GetDisplayContextForPos symbolUse.Range.End
+        |> Option.defaultValue FSharpDisplayContext.Empty
 
 module private SourceText =
 

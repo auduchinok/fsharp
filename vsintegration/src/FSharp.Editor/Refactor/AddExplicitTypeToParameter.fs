@@ -71,7 +71,7 @@ type internal FSharpAddExplicitTypeToParameterRefactoring [<ImportingConstructor
 
             match symbolUse.Symbol with
             | :? FSharpMemberOrFunctionOrValue as v when isValidParameterWithoutTypeAnnotation v symbolUse ->
-                let! displayContext = checkFileResults.GetDisplayContextForPos symbolUse.Range.End
+                let displayContext = checkFileResults.GetDisplayContextAt symbolUse
                 let typeString = v.FullType.FormatWithConstraints displayContext
                 let title = SR.AddTypeAnnotation()
 

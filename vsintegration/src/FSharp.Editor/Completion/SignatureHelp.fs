@@ -339,7 +339,7 @@ type internal FSharpSignatureHelpProvider [<ImportingConstructor>] (serviceProvi
                     lexerSymbol.FullIsland
                 )
 
-            let! displayContext = checkFileResults.GetDisplayContextForPos symbolUse.Range.End
+            let displayContext = checkFileResults.GetDisplayContextAt symbolUse
 
             let isValid (mfv: FSharpMemberOrFunctionOrValue) =
                 not (PrettyNaming.IsOperatorDisplayName mfv.DisplayName)

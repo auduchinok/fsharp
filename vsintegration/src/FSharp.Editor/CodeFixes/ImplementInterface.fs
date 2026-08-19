@@ -275,10 +275,8 @@ type internal ImplementInterfaceCodeFixProvider [<ImportingConstructor>] () =
                                     // in that case change the check to `InterfaceStubGenerator.IsInterface entity`
                                     entity.AllInterfaces.Count = 1
                                     ->
-                                    match checkFileResults.GetDisplayContextForPos symbolUse.Range.End with
-                                    | None -> return Seq.empty
-                                    | Some displayContext ->
-                                        return!
-                                            getSuggestions (sourceText, checkFileResults, interfaceState, displayContext, entity, tabSize)
+                                    let displayContext = checkFileResults.GetDisplayContextAt symbolUse
+
+                                    return! getSuggestions (sourceText, checkFileResults, interfaceState, displayContext, entity, tabSize)
                                 | _ -> return Seq.empty
             }

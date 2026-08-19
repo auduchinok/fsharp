@@ -13,9 +13,7 @@ type InlayReturnTypeHints
     (parseFileResults: FSharpParseFileResults, checkResults: FSharpCheckFileResults, symbol: FSharpMemberOrFunctionOrValue) =
 
     let getHintParts (symbolUse: FSharpSymbolUse) =
-        let displayContext =
-            checkResults.GetDisplayContextForPos symbolUse.Range.End
-            |> Option.defaultValue FSharpDisplayContext.Empty
+        let displayContext = checkResults.GetDisplayContextAt symbolUse
 
         symbol.GetReturnTypeRichText displayContext
         |> Option.map (fun typeInfo ->

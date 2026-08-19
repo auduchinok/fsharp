@@ -109,10 +109,11 @@ type internal AddReturnType [<ImportingConstructor>] () =
                         memberFunc
                         |> AddReturnType.isValidMethodWithoutTypeAnnotation symbolUse parseFileResults
 
-                    match isValidMethod, checkFileResults.GetDisplayContextForPos symbolUse.Range.End with
-                    | Some(memberFunc, typeRange), Some displayContext ->
+                    match isValidMethod with
+                    | Some(memberFunc, typeRange) ->
+                        let displayContext = checkFileResults.GetDisplayContextAt symbolUse
                         do AddReturnType.refactor context (memberFunc, typeRange, displayContext)
-                    | _ -> ()
+                    | None -> ()
                 | _ -> ()
 
                 return ()
