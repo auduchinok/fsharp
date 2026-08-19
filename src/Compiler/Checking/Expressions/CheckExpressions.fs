@@ -498,7 +498,7 @@ let MakeInnerEnvWithAcc addOpenToNameEnv env nm moduleTyAcc moduleKind =
     let cpath = env.eCompPath.NestedCompPath nm.idText moduleKind
     let nenv =
         if addOpenToNameEnv then
-            { env.NameEnv with eDisplayEnv = env.DisplayEnv.AddOpenPath (pathOfLid path) }
+            env.NameEnv.WithGlobals { env.NameEnv.eGlobals with gDisplayEnv = env.DisplayEnv.AddOpenPath (pathOfLid path) }
         else
             env.NameEnv
     let ad = ComputeAccessRights cpath env.eInternalsVisibleCompPaths env.eFamilyType
@@ -556,7 +556,7 @@ let LocateEnv isModule ccu env enclosingNamespacePath =
             eAccessRights = ComputeAccessRights cpath env.eInternalsVisibleCompPaths env.eFamilyType }
     let isExplicitNamespace = not isModule
     let env = List.fold (fun env id -> MakeInnerEnv false env id (Namespace isExplicitNamespace) |> fst) env enclosingNamespacePath
-    let env = { env with eNameResEnv = { env.NameEnv with eDisplayEnv = env.DisplayEnv.AddOpenPath (pathOfLid env.ePath) } }
+    let env = { env with eNameResEnv = env.NameEnv.WithGlobals { env.NameEnv.eGlobals with gDisplayEnv = env.DisplayEnv.AddOpenPath (pathOfLid env.ePath) } }
     env
 
 //-------------------------------------------------------------------------

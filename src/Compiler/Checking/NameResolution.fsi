@@ -181,68 +181,102 @@ type ExtensionMember =
     /// later through 'open' get priority in overload resolution.
     member Priority: ExtensionMethodPriority
 
-/// The environment of information used to resolve names
+/// The part of the name resolution environment that only changes at declaration level: on an open, on
+/// entering a module or namespace, or when a type's contents come into scope. Held separately because
+/// NameResolutionEnv is copied for every local binding in every expression.
 [<NoEquality; NoComparison>]
-type NameResolutionEnv =
+type GlobalNameEnv =
     {
         /// Display environment information for output
-        eDisplayEnv: DisplayEnv
+        gDisplayEnv: DisplayEnv
 
         /// Values and Data Tags available by unqualified name, other than local bindings
-        eUnqualifiedItems: LayeredMap<string, Item>
-
-        /// Values bound locally inside expressions. Shadows eUnqualifiedItems.
-        eLocalItems: LayeredMap<string, Item>
+        gUnqualifiedItems: LayeredMap<string, Item>
 
         /// Enclosing type instantiations that are associated with an unqualified type item
-        eUnqualifiedEnclosingTypeInsts: TyconRefMap<EnclosingTypeInst>
+        gUnqualifiedEnclosingTypeInsts: TyconRefMap<EnclosingTypeInst>
 
         /// Data Tags and Active Pattern Tags available by unqualified name
-        ePatItems: NameMap<Item>
+        gPatItems: NameMap<Item>
 
         /// Modules accessible via "." notation. Note this is a multi-map.
         /// Adding a module abbreviation adds it a local entry to this List.map.
         /// Likewise adding a ccu or opening a path adds entries to this List.map.
-        eModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
+        gModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
 
         /// Fully qualified modules and namespaces. 'open' does not change this.
-        eFullyQualifiedModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
+        gFullyQualifiedModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
 
         /// RecdField labels in scope.  RecdField labels are those where type are inferred
         /// by label rather than by known type annotation.
         /// Bools indicate if from a record, where no warning is given on indeterminate lookup
-        eFieldLabels: NameMultiMap<RecdFieldRef>
+        gFieldLabels: NameMultiMap<RecdFieldRef>
 
         /// Record or unions that may have type instantiations associated with them
         /// when record labels or union cases are used in an unqualified context.
-        eUnqualifiedRecordOrUnionTypeInsts: TyconRefMap<TypeInst>
+        gUnqualifiedRecordOrUnionTypeInsts: TyconRefMap<TypeInst>
 
         /// Tycons indexed by the various names that may be used to access them, e.g.
         ///     "List" --> multiple TyconRef's for the various tycons accessible by this name.
         ///     "List`1" --> TyconRef
-        eTyconsByAccessNames: LayeredMultiMap<string, TyconRef>
+        gTyconsByAccessNames: LayeredMultiMap<string, TyconRef>
 
-        eFullyQualifiedTyconsByAccessNames: LayeredMultiMap<string, TyconRef>
-
-        /// Tycons available by unqualified, demangled names (i.e. (List,1) --> TyconRef)
-        eTyconsByDemangledNameAndArity: LayeredMap<NameArityPair, TyconRef>
+        gFullyQualifiedTyconsByAccessNames: LayeredMultiMap<string, TyconRef>
 
         /// Tycons available by unqualified, demangled names (i.e. (List,1) --> TyconRef)
-        eFullyQualifiedTyconsByDemangledNameAndArity: LayeredMap<NameArityPair, TyconRef>
+        gTyconsByDemangledNameAndArity: LayeredMap<NameArityPair, TyconRef>
+
+        /// Tycons available by unqualified, demangled names (i.e. (List,1) --> TyconRef)
+        gFullyQualifiedTyconsByDemangledNameAndArity: LayeredMap<NameArityPair, TyconRef>
 
         /// Extension members by type and name
-        eIndexedExtensionMembers: TyconRefMultiMap<ExtensionMember>
+        gIndexedExtensionMembers: TyconRefMultiMap<ExtensionMember>
 
         /// Other extension members unindexed by type
-        eUnindexedExtensionMembers: ExtensionMember list
+        gUnindexedExtensionMembers: ExtensionMember list
 
         /// Typars (always available by unqualified names). Further typars can be
         /// in the tpenv, a structure folded through each top-level definition.
-        eTypars: NameMap<Typar>
+        gTypars: NameMap<Typar>
 
     }
 
+    static member Empty: g: TcGlobals -> GlobalNameEnv
+
+/// The environment of information used to resolve names.
+///
+/// Two fields, because this is the record copied for every local binding in every expression.
+[<NoEquality; NoComparison>]
+type NameResolutionEnv =
+    {
+        /// Everything that changes only on an open, or on entering a module, namespace or type
+        eGlobals: GlobalNameEnv
+
+        /// Values bound locally inside expressions. Shadows eUnqualifiedItems.
+        eLocalItems: LayeredMap<string, Item>
+    }
+
     static member Empty: g: TcGlobals -> NameResolutionEnv
+
+    /// Replace the declaration-level tables, sharing the local bindings
+    member WithGlobals: globals: GlobalNameEnv -> NameResolutionEnv
+
+    member eDisplayEnv: DisplayEnv
+    member eUnqualifiedItems: LayeredMap<string, Item>
+    member eUnqualifiedEnclosingTypeInsts: TyconRefMap<EnclosingTypeInst>
+    member ePatItems: NameMap<Item>
+    member eModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
+    member eFullyQualifiedModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
+    member eFieldLabels: NameMultiMap<RecdFieldRef>
+    member eUnqualifiedRecordOrUnionTypeInsts: TyconRefMap<TypeInst>
+    member eTyconsByAccessNames: LayeredMultiMap<string, TyconRef>
+    member eFullyQualifiedTyconsByAccessNames: LayeredMultiMap<string, TyconRef>
+    member eTyconsByDemangledNameAndArity: LayeredMap<NameArityPair, TyconRef>
+    member eFullyQualifiedTyconsByDemangledNameAndArity: LayeredMap<NameArityPair, TyconRef>
+    member eIndexedExtensionMembers: TyconRefMultiMap<ExtensionMember>
+    member eUnindexedExtensionMembers: ExtensionMember list
+    member eTypars: NameMap<Typar>
+
     member DisplayEnv: DisplayEnv
     member FindUnqualifiedItem: string -> Item
 
@@ -491,7 +525,8 @@ type ITypecheckResultsSink =
     abstract NotifyNameResolution: pos * Item * TyparInstantiation * ItemOccurrence * range * bool -> unit
 
     /// Record that a method group name resolution occurred at a specific location in the source
-    abstract NotifyMethodGroupNameResolution: pos * Item * Item * TyparInstantiation * ItemOccurrence * range * bool -> unit
+    abstract NotifyMethodGroupNameResolution:
+        pos * Item * Item * TyparInstantiation * ItemOccurrence * range * bool -> unit
 
     /// Record that a printf format specifier occurred at a specific location in the source
     abstract NotifyFormatSpecifierLocation: range * int -> unit
@@ -629,15 +664,15 @@ val internal RunWithBufferedReporting:
 val internal CallEnvSink: TcResultsSink -> range * NameResolutionEnv * AccessorDomain -> unit
 
 /// Report a specific name resolution at a source range
-val internal CallNameResolutionSink:
-    TcResultsSink -> range * Item * TyparInstantiation * ItemOccurrence -> unit
+val internal CallNameResolutionSink: TcResultsSink -> range * Item * TyparInstantiation * ItemOccurrence -> unit
 
 /// Report a specific method group name resolution at a source range
 val internal CallMethodGroupNameResolutionSink:
     TcResultsSink -> range * Item * Item * TyparInstantiation * ItemOccurrence -> unit
 
 /// Report a specific name resolution at a source range, replacing any previous resolutions
-val internal CallNameResolutionSinkReplacing: TcResultsSink -> range * Item * TyparInstantiation * ItemOccurrence -> unit
+val internal CallNameResolutionSinkReplacing:
+    TcResultsSink -> range * Item * TyparInstantiation * ItemOccurrence -> unit
 
 /// #16621
 val internal RegisterUnionCaseTesterForProperty: TcResultsSink -> identRange: range -> PropInfo list -> unit
