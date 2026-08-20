@@ -59,6 +59,58 @@ let stronglyHeldReaderCacheSize =
     with _ ->
         stronglyHeldReaderCacheSizeDefault
 
+
+
+/// A reader dedups a row within its own assembly, but the same value is read again in every assembly
+/// that mentions it, and readers are shared process-wide (see ilModuleReaderCache1/2). Bounded, because
+/// an entry outlives the reader that produced it; interning is an optimisation, so past the cap new
+/// values simply stay unshared.
+[<Sealed>]
+type private InternTable<'T when 'T: not null and 'T: equality>(capacity: int, ?comparer: IEqualityComparer<'T>) =
+    let table = ConcurrentDictionary<'T, 'T>(defaultArg comparer HashIdentity.Structural)
+    let mutable count = 0
+
+    member _.Intern(v: 'T) =
+        match table.TryGetValue v with
+        | true, existing -> existing
+        | _ ->
+            if count < capacity && table.TryAdd(v, v) then
+                System.Threading.Interlocked.Increment(&count) |> ignore
+
+            v
+
+    member _.Clear() =
+        table.Clear()
+        count <- 0
+
+/// Constructors are interned before the attributes that carry them, so one compares by reference here.
+/// Structural equality would walk the constructor's method ref, argument types and assembly ref on every
+/// attribute read instead.
+[<Sealed>]
+type private EncodedAttributeComparer() =
+    interface IEqualityComparer<ILAttribute> with
+        member _.Equals(x, y) =
+            match x, y with
+            | ILAttribute.Encoded(m1, d1, []), ILAttribute.Encoded(m2, d2, []) -> obj.ReferenceEquals(m1, m2) && d1 = d2
+            | _ -> x = y
+
+        member _.GetHashCode(x) =
+            match x with
+            | ILAttribute.Encoded(m, d, _) ->
+                let mutable h = LanguagePrimitives.PhysicalHash m
+
+                for i in 0 .. min d.Length 16 - 1 do
+                    h <- (h * 31) ^^^ int d[i]
+
+                (h * 31) ^^^ d.Length
+            | x -> hash x
+
+let private internedAttributes =
+    InternTable<ILAttribute>(8192, EncodedAttributeComparer())
+
+let private internedAttributeCtors = InternTable<ILMethodSpec>(2048)
+let private internedTypeRefs = InternTable<ILTypeRef>(8192)
+
 let singleOfBits (x: int32) =
     BitConverter.ToSingle(BitConverter.GetBytes x, 0)
 
@@ -1140,6 +1192,7 @@ type ILMetadataReader =
         seekReadMemberRefAsMethodData: MemberRefAsMspecIdx -> VarArgMethodData
         seekReadMemberRefAsFieldSpec: MemberRefAsFspecIdx -> ILFieldSpec
         seekReadCustomAttr: CustomAttrIdx -> ILAttribute
+        seekReadCustomAttrType: TaggedIndex<CustomAttributeTypeTag> -> ILMethodSpec
         seekReadTypeRef: int -> ILTypeRef
         seekReadTypeRefAsType: TypeRefAsTypIdx -> ILType
         readBlobHeapAsPropertySig: BlobAsPropSigIdx -> ILThisConvention * ILType * ILTypes
@@ -2369,7 +2422,7 @@ and seekReadTypeRefUncached ctxtH idx =
     let scopeIdx, nameIdx, namespaceIdx = seekReadTypeRefRow ctxt mdv idx
     let scope, enc = seekReadTypeRefScope ctxt mdv scopeIdx
     let nm = readBlobHeapAsTypeName ctxt (nameIdx, namespaceIdx)
-    ILTypeRef.Create(scope = scope, enclosing = enc, name = nm)
+    internedTypeRefs.Intern(ILTypeRef.Create(scope = scope, enclosing = enc, name = nm))
 
 and seekReadTypeRefAsType (ctxt: ILMetadataReader) boxity ginst idx =
     ctxt.seekReadTypeRefAsType (TypeRefAsTypIdx(boxity, ginst, idx))
@@ -2433,19 +2486,28 @@ and seekReadMethodDefOrRefNoVarargs (ctxt: ILMetadataReader) numTypars x =
 
     MethodData(enclTy, cc, nm, argTys, retTy, methInst)
 
-and seekReadCustomAttrType (ctxt: ILMetadataReader) (TaggedIndex(tag, idx)) =
-    match tag with
-    | tag when tag = cat_MethodDef ->
-        let (MethodData(enclTy, cc, nm, argTys, retTy, methInst)) =
-            seekReadMethodDefAsMethodData ctxt idx
+and seekReadCustomAttrType (ctxt: ILMetadataReader) idx = ctxt.seekReadCustomAttrType idx
 
-        mkILMethSpecInTy (enclTy, cc, nm, argTys, retTy, methInst)
-    | tag when tag = cat_MemberRef ->
-        let (MethodData(enclTy, cc, nm, argTys, retTy, methInst)) =
-            seekReadMemberRefAsMethDataNoVarArgs ctxt 0 idx
+// Interned here rather than at the use site: an assembly mentions the same attribute constructor over and
+// over, and this is the one place per constructor row.
+and seekReadCustomAttrTypeUncached ctxtH (TaggedIndex(tag, idx)) =
+    let (ctxt: ILMetadataReader) = getHole ctxtH
 
-        mkILMethSpecInTy (enclTy, cc, nm, argTys, retTy, methInst)
-    | _ -> failwith "seekReadCustomAttrType ctxt"
+    let spec =
+        match tag with
+        | tag when tag = cat_MethodDef ->
+            let (MethodData(enclTy, cc, nm, argTys, retTy, methInst)) =
+                seekReadMethodDefAsMethodData ctxt idx
+
+            mkILMethSpecInTy (enclTy, cc, nm, argTys, retTy, methInst)
+        | tag when tag = cat_MemberRef ->
+            let (MethodData(enclTy, cc, nm, argTys, retTy, methInst)) =
+                seekReadMemberRefAsMethDataNoVarArgs ctxt 0 idx
+
+            mkILMethSpecInTy (enclTy, cc, nm, argTys, retTy, methInst)
+        | _ -> failwith "seekReadCustomAttrTypeUncached"
+
+    internedAttributeCtors.Intern spec
 
 and seekReadImplAsScopeRef (ctxt: ILMetadataReader) mdv (TaggedIndex(tag, idx)) =
     if idx = 0 then
@@ -3333,7 +3395,7 @@ and seekReadCustomAttrUncached ctxtH (CustomAttrIdx(cat, idx, valIdx)) =
         | None -> Bytes.ofInt32Array [||]
 
     let elements = []
-    ILAttribute.Encoded(method, data, elements)
+    internedAttributes.Intern(ILAttribute.Encoded(method, data, elements))
 
 and securityDeclsReader ctxtH tag =
     mkILSecurityDeclsReader (fun idx ->
@@ -4483,6 +4545,9 @@ let openMetadataReader
     let cacheMemberRefAsMemberData =
         mkCacheGeneric reduceMemoryUsage inbase "MemberRefAsMemberData" (getNumRows TableNames.MemberRef / 20 + 1)
 
+    let cacheCustomAttrType =
+        mkCacheGeneric reduceMemoryUsage inbase "CustomAttrType" (getNumRows TableNames.CustomAttribute / 20 + 1)
+
     let cacheCustomAttr =
         mkCacheGeneric reduceMemoryUsage inbase "CustomAttr" (getNumRows TableNames.CustomAttribute / 50 + 1)
 
@@ -4574,6 +4639,7 @@ let openMetadataReader
             seekReadMemberRefAsMethodData = cacheMemberRefAsMemberData (seekReadMemberRefAsMethodDataUncached ctxtH)
             seekReadMemberRefAsFieldSpec = seekReadMemberRefAsFieldSpecUncached ctxtH
             seekReadCustomAttr = cacheCustomAttr (seekReadCustomAttrUncached ctxtH)
+            seekReadCustomAttrType = cacheCustomAttrType (seekReadCustomAttrTypeUncached ctxtH)
             seekReadTypeRef = cacheTypeRef (seekReadTypeRefUncached ctxtH)
             readBlobHeapAsPropertySig = cacheBlobHeapAsPropertySig (readBlobHeapAsPropertySigUncached ctxtH)
             readBlobHeapAsFieldSig = cacheBlobHeapAsFieldSig (readBlobHeapAsFieldSigUncached ctxtH)
@@ -5084,6 +5150,9 @@ let OpenILModuleReaderFromStream fileName (peStream: Stream) options =
 let ClearAllILModuleReaderCache () =
     ilModuleReaderCache1.Clear(ILModuleReaderCache1LockToken())
     ilModuleReaderCache2.Clear()
+    internedAttributes.Clear()
+    internedAttributeCtors.Clear()
+    internedTypeRefs.Clear()
 
 let OpenILModuleReader fileName opts =
     // Pseudo-normalize the paths.
