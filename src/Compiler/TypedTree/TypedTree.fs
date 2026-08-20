@@ -695,6 +695,11 @@ type Entity =
       // MUTABILITY: only for unpickle linkage and caching
       mutable entity_il_repr_cache: CompiledTypeRepr cache
 
+      /// The reference to this entity from its enclosing module or namespace. Name resolution rebuilds
+      /// it for every `open` of that module in every file, and an entity has only one enclosing module.
+      // MUTABILITY: caching only
+      mutable entity_nested_ref: EntityRef | null
+
       mutable entity_opt_data: EntityOptionalData option
     }
 
@@ -1090,6 +1095,7 @@ type Entity =
           entity_pubpath = Unchecked.defaultof<_>
           entity_cpath = Unchecked.defaultof<_>
           entity_il_repr_cache = Unchecked.defaultof<_>
+          entity_nested_ref = Unchecked.defaultof<_>
           entity_opt_data = Unchecked.defaultof<_>}
 
     /// Create a new entity with the given backing data. Only used during unpickling of F# metadata.
@@ -6303,6 +6309,7 @@ type Construct() =
             entity_pubpath = Some pubpath
             entity_cpath = Some cpath
             entity_il_repr_cache = newCache()
+            entity_nested_ref = null
             entity_opt_data =
                 match kind, access with
                 | TyparKind.Type, TAccess [] -> None
@@ -6328,6 +6335,7 @@ type Construct() =
             entity_cpath=cpath
             entity_attribs=WellKnownEntityAttribs.Create(attribs)
             entity_il_repr_cache = newCache()
+            entity_nested_ref = null
             entity_opt_data =
                 match xml, access with
                 | doc, TAccess [] when doc.IsEmpty -> None
@@ -6406,6 +6414,7 @@ type Construct() =
             entity_tycon_repr = TNoRepr
             entity_flags = EntityFlags(usesPrefixDisplay=false, isModuleOrNamespace=false, preEstablishedHasDefaultCtor=false, hasSelfReferentialCtor=false, isStructRecordOrUnionType=false)
             entity_il_repr_cache = newCache()
+            entity_nested_ref = null
             entity_opt_data =
                 match doc, access, repr with
                 | doc, TAccess [], TExnNone when doc.IsEmpty -> None
@@ -6445,6 +6454,7 @@ type Construct() =
             entity_pubpath=cpath |> Option.map (fun (cp: CompilationPath) -> cp.NestedPublicPath (mkSynId m nm))
             entity_cpath = cpath
             entity_il_repr_cache = newCache()
+            entity_nested_ref = null
             entity_opt_data =
                 match kind, doc, reprAccess, access with
                 | TyparKind.Type, doc, TAccess [], TAccess [] when doc.IsEmpty -> None

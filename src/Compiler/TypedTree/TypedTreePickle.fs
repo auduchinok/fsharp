@@ -3185,6 +3185,7 @@ and u_entity_spec_data st : Entity =
         entity_cpath = x12
         entity_modul_type = MaybeLazy.Lazy x13
         entity_il_repr_cache = newCache ()
+        entity_nested_ref = null
         entity_opt_data =
             match x2b, x10b, x15, x8, x4a, x4b, x14 with
             | None, TyparKind.Type, None, None, TAccess [], TAccess [], TExnNone -> None
