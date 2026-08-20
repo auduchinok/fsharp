@@ -711,8 +711,8 @@ type Entity =
           entity_other_xmldoc = None
           entity_xmldocsig = ""
           entity_tycon_abbrev = None
-          entity_tycon_repr_accessibility = TAccess []
-          entity_accessibility = TAccess []
+          entity_tycon_repr_accessibility = taccessPublic
+          entity_accessibility = taccessPublic
           entity_exn_info = TExnNone }
 
     /// The name of the namespace, module or type, possibly with mangling, e.g. List`1, List or FailureException 
@@ -940,7 +940,7 @@ type Entity =
     member x.TypeReprAccessibility =
         match x.entity_opt_data with
         | Some optData -> optData.entity_tycon_repr_accessibility
-        | _ -> TAccess []
+        | _ -> taccessPublic
 
     /// Get the cache of the compiled ILTypeRef representation of this module or type.
     member x.CompiledReprCache = x.entity_il_repr_cache
@@ -952,7 +952,7 @@ type Entity =
     member x.Accessibility =
         match x.entity_opt_data with
         | Some optData -> optData.entity_accessibility
-        | _ -> TAccess []
+        | _ -> taccessPublic
 
     /// Indicates the type prefers the "tycon<a, b>" syntax for display etc. 
     member x.IsPrefixDisplay = x.entity_flags.IsPrefixDisplay
@@ -2289,6 +2289,10 @@ let updateSyntaxAccessForCompPath access syntaxAccess =
     | CompPath(sc, sa, p) :: rest when sa <> syntaxAccess -> ([CompPath(sc, syntaxAccess, p)]@rest)
     | _ -> access
 
+/// The shared value for public accessibility. The accessibility getters below are read constantly, and
+/// returning a fresh `TAccess []` from them allocates one per read.
+let taccessPublic = TAccess []
+
 /// Represents the constraint on access for a construct
 [<StructuralEquality; NoComparison; StructuredFormatDisplay("{DebugText}")>]
 type Accessibility =
@@ -2906,7 +2910,7 @@ type Val =
           val_repr_info = None
           val_repr_info_for_display = None
           arg_repr_info_for_display = None
-          val_access = TAccess []
+          val_access = taccessPublic
           val_xmldoc = XmlDoc.Empty
           val_other_xmldoc = None
           val_member_info = None
@@ -2944,7 +2948,7 @@ type Val =
     member x.Accessibility = 
         match x.val_opt_data with
         | Some optData -> optData.val_access
-        | _ -> TAccess []
+        | _ -> taccessPublic
 
     /// The value of a value or member marked with [<LiteralAttribute>] 
     member x.LiteralValue = 
@@ -3646,7 +3650,7 @@ type NonLocalEntityRef =
                                         let cpath = entity.CompilationPath.NestedCompPath entity.LogicalName (ModuleOrNamespaceKind.Namespace false)
                                         Construct.NewModuleOrNamespace 
                                             (Some cpath) 
-                                            (TAccess []) (ident(path[k], m)) XmlDoc.Empty [] 
+                                            taccessPublic (ident(path[k], m)) XmlDoc.Empty [] 
                                             (MaybeLazy.Strict (Construct.NewEmptyModuleOrNamespaceType (Namespace true)))))
                             injectNamespacesFromIToJ newEntity (k+1)
                     let newEntity = injectNamespacesFromIToJ entity i
@@ -6196,7 +6200,7 @@ type FreeVars =
 /// A set of static methods for constructing types.
 type Construct() = 
 
-    static let taccessPublic = TAccess [] 
+    static let taccessPublic = taccessPublic
     
     /// Key a Tycon or TyconRef by decoded name
     static member KeyTyconByDecodedName<'T> (nm: string) (x: 'T) : KeyValuePair<NameArityPair, 'T> = 
@@ -6283,7 +6287,7 @@ type Construct() =
         let access = 
             match access with 
             | Some a -> a 
-            | None -> TAccess []
+            | None -> taccessPublic
         let cpath =  
             match cpath with 
             | None -> 
