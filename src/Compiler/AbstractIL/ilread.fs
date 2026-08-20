@@ -1941,7 +1941,11 @@ let rec seekReadModule (ctxt: ILMetadataReader) canReduceMemory (pectxtEager: PE
         MetadataIndex = idx
         Name = ilModuleName
         NativeResources = nativeResources
-        TypeDefs = mkILTypeDefsGroupedComputed (fun () -> seekReadTopTypeDefEntries ctxt) (fun () -> Array.empty)
+        TypeDefs =
+            mkILTypeDefsGroupedComputed
+                (fun (struct (nameIdx, metadataIndex)) -> mkILPreTypeDefRead (nameIdx, metadataIndex, ctxt.typeDefReader))
+                (fun () -> seekReadTopTypeDefEntries ctxt)
+                (fun () -> Array.empty)
         SubSystemFlags = int32 subsys
         IsILOnly = ilOnly
         SubsystemVersion = subsysversion
@@ -2284,7 +2288,7 @@ and seekReadTopTypeDefEntries (ctxt: ILMetadataReader) =
                     | Some nspace -> splitNamespace nspace
                     | None -> []
 
-                yield struct (ns, mkILPreTypeDefRead (nameIdx, i, ctxt.typeDefReader))
+                yield struct (ns, struct (nameIdx, i))
     |]
 
 and seekReadNestedTypeDefs (ctxt: ILMetadataReader) tidx =

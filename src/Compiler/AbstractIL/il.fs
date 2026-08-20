@@ -3626,23 +3626,23 @@ and private combinePreNamespaces (a: ILPreNamespace) (b: ILPreNamespace) =
         (fun () -> mergePreNamespaces (a.GetNamespaces()) (b.GetNamespaces()))
     )
 
-let inline private namespaceOfEntry (entries: struct (string list * ILPreTypeDef)[]) i =
+let inline private namespaceOfEntry (entries: struct (string list * 'T)[]) i =
     let struct (ns, _) = entries[i]
     ns
 
 /// Order entries so each namespace is one contiguous run, its own types ahead of its children, both in
 /// first-seen order - which merges a namespace split across the source. Every level is then a range of this
 /// one array: descending costs a node, never a copy.
-let private groupEntriesByNamespace (entries: struct (string list * ILPreTypeDef)[]) =
+let private groupEntriesByNamespace (entries: struct (string list * 'T)[]) =
     // A level whose types all sit in it needs no ordering.
     if entries |> Array.forall (fun (struct (ns, _)) -> List.isEmpty ns) then
         entries
     else
         let grouped = ResizeArray entries.Length
 
-        let rec fill (level: ResizeArray<struct (string list * ILPreTypeDef)>) depth =
+        let rec fill (level: ResizeArray<struct (string list * 'T)>) depth =
             let heads = ResizeArray<string>()
-            let buckets = Dictionary<string, ResizeArray<struct (string list * ILPreTypeDef)>>()
+            let buckets = Dictionary<string, ResizeArray<struct (string list * 'T)>>()
 
             for entry in level do
                 let struct (ns, _) = entry
@@ -3668,21 +3668,30 @@ let private groupEntriesByNamespace (entries: struct (string list * ILPreTypeDef
 
 /// A namespace as a range of the grouped array: one that is never imported stays a single object.
 [<Sealed>]
-type private ILPreNamespaceOfRange(name: string, entries: struct (string list * ILPreTypeDef)[], lo: int, hi: int, depth: int) =
+type private ILPreNamespaceOfRange<'T>
+    (
+        name: string,
+        entries: struct (string list * 'T)[],
+        lo: int,
+        hi: int,
+        depth: int,
+        /// Most namespaces are never enumerated, so a pre-type-def is built only when its range is.
+        materialise: 'T -> ILPreTypeDef
+    ) =
     inherit ILPreNamespace(name)
 
     /// Grouping put the level's own types at the front of its range.
-    static member Types(entries: struct (string list * ILPreTypeDef)[], lo, hi, depth) =
+    static member Types(entries: struct (string list * 'T)[], lo, hi, depth, materialise: 'T -> ILPreTypeDef) =
         let mutable count = 0
 
         while lo + count < hi && List.length (namespaceOfEntry entries (lo + count)) = depth do
             count <- count + 1
 
         Array.init count (fun i ->
-            let struct (_, pre) = entries[lo + i]
-            pre)
+            let struct (_, payload) = entries[lo + i]
+            materialise payload)
 
-    static member Namespaces(entries: struct (string list * ILPreTypeDef)[], lo, hi, depth) =
+    static member Namespaces(entries: struct (string list * 'T)[], lo, hi, depth, materialise: 'T -> ILPreTypeDef) =
         let mutable i = lo
 
         while i < hi && List.length (namespaceOfEntry entries i) = depth do
@@ -3697,32 +3706,32 @@ type private ILPreNamespaceOfRange(name: string, entries: struct (string list * 
             while i < hi && List.item depth (namespaceOfEntry entries i) = name do
                 i <- i + 1
 
-            children.Add(ILPreNamespaceOfRange(name, entries, start, i, depth + 1) :> ILPreNamespace)
+            children.Add(ILPreNamespaceOfRange(name, entries, start, i, depth + 1, materialise) :> ILPreNamespace)
 
         children.ToArray()
 
     override _.ComputeTypes() =
-        ILPreNamespaceOfRange.Types(entries, lo, hi, depth)
+        ILPreNamespaceOfRange.Types(entries, lo, hi, depth, materialise)
 
     override _.ComputeNamespaces() =
-        ILPreNamespaceOfRange.Namespaces(entries, lo, hi, depth)
+        ILPreNamespaceOfRange.Namespaces(entries, lo, hi, depth, materialise)
 
 let mkILTypeDefsComputed f = ILTypeDefs f
 
 let mkILTypeDefsOfNamespace (preNamespace: ILPreNamespace) =
     ILTypeDefs(preNamespace.GetTypes, preNamespace.GetNamespaces)
 
-let mkILTypeDefsGroupedComputed (types: unit -> struct (string list * ILPreTypeDef)[]) (namespaces: unit -> ILPreNamespace[]) =
+let mkILTypeDefsGroupedComputed (materialise: 'T -> ILPreTypeDef) (types: unit -> struct (string list * 'T)[]) (namespaces: unit -> ILPreNamespace[]) =
     // Grouping runs once per table, on whichever half of the top level is asked for first.
     let entries = InterruptibleLazy(fun () -> groupEntriesByNamespace (types ()))
 
     let getTypes () =
         let entries = entries.Value
-        ILPreNamespaceOfRange.Types(entries, 0, entries.Length, 0)
+        ILPreNamespaceOfRange.Types(entries, 0, entries.Length, 0, materialise)
 
     let getNamespaces () =
         let entries = entries.Value
-        mergePreNamespaces (ILPreNamespaceOfRange.Namespaces(entries, 0, entries.Length, 0)) (namespaces ())
+        mergePreNamespaces (ILPreNamespaceOfRange.Namespaces(entries, 0, entries.Length, 0, materialise)) (namespaces ())
 
     ILTypeDefs(getTypes, getNamespaces)
 

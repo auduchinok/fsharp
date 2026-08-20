@@ -2421,7 +2421,10 @@ val mkILTypeDefsOfNamespace: ILPreNamespace -> ILTypeDefs
 /// with its namespace path below this level ([] for the level's own types); those are grouped into children
 /// on demand, in first-seen order, with a split namespace becoming one child.
 val mkILTypeDefsGroupedComputed:
-    types: (unit -> struct (string list * ILPreTypeDef)[]) -> namespaces: (unit -> ILPreNamespace[]) -> ILTypeDefs
+    materialise: ('T -> ILPreTypeDef) ->
+    types: (unit -> struct (string list * 'T)[]) ->
+    namespaces: (unit -> ILPreNamespace[]) ->
+        ILTypeDefs
 
 val internal addILTypeDef: ILTypeDef -> ILTypeDefs -> ILTypeDefs
 

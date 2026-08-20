@@ -772,7 +772,7 @@ let ImportILAssemblyExportedType amap m auxModLoader (scoref: ILScopeRef) (expor
                         error(Error(FSComp.SR.impReferenceToDllRequiredByAssembly(RichText.mkText exportedType.ScopeRef.QualifiedName, RichText.mkText scoref.QualifiedName, RichText.ofQualifiedTypeName exportedType.Name), m)) }
 
         // A one-entry table: grouping turns the type's namespace into the entity chain.
-        let tdefs = mkILTypeDefsGroupedComputed (fun () -> [| struct (ns, pre) |]) (fun () -> Array.empty)
+        let tdefs = mkILTypeDefsGroupedComputed id (fun () -> [| struct (ns, pre) |]) (fun () -> Array.empty)
 
         [ ImportILTypeDefs amap m scoref (CompPath(scoref, SyntaxAccess.Unknown, [])) [] tdefs ]
 
