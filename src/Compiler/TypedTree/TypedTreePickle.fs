@@ -218,7 +218,7 @@ type ReaderState =
     }
 
 // A `HashSet` would fit better, but the member returning the instance it holds is netstandard2.1.
-let shareIL (table: Dictionary<'T, 'T>) (v: 'T) : 'T =
+let share (table: Dictionary<'T, 'T>) (v: 'T) : 'T =
     match table.TryGetValue v with
     | true, existing -> existing
     | _ ->
@@ -1256,7 +1256,7 @@ let u_ILScopeRef st =
         | _ -> ufailwith st "u_ILScopeRef"
 
     let res = rescopeILScopeRef st.iilscope res
-    shareIL st.iilscopes res
+    share st.iilscopes res
 
 let p_ILHasThis x st =
     p_byte
@@ -1346,7 +1346,7 @@ let u_ILCallConv st =
 let u_ILTypeRef st =
     let a, b, c = u_tup3 u_ILScopeRef u_strings u_string st
     let res = ILTypeRef.Create(a, b, c)
-    shareIL st.iiltyperefs res
+    share st.iiltyperefs res
 
 let u_ILArrayShape =
     u_wrap ILArrayShape (u_list (u_tup2 (u_option u_int32) (u_option u_int32)))
@@ -1440,7 +1440,7 @@ let u_ILMethodRef st =
         u_tup6 u_ILTypeRef u_ILCallConv u_int u_string u_ILTypes u_ILType st
 
     let res = ILMethodRef.Create(x1, x2, x4, x3, x5, x6)
-    shareIL st.iilmethodrefs res
+    share st.iilmethodrefs res
 
 let u_ILFieldRef st =
     let x1, x2, x3 = u_tup3 u_ILTypeRef u_string u_ILType st
@@ -3116,7 +3116,7 @@ and u_exnc_repr st =
 and u_access st =
     match u_list u_cpath st with
     | [] -> taccessPublic // save unnecessary allocations
-    | res -> shareIL st.iaccess (TAccess res)
+    | res -> share st.iaccess (TAccess res)
 
 and u_recdfield_spec st =
     let a = u_bool st
