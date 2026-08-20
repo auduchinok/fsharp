@@ -144,7 +144,14 @@ type EntityRef with
     member tcref.NestedTyconRef (x: Entity) = 
         match tcref with 
         | ERefLocal _ -> mkLocalTyconRef x
-        | ERefNonLocal nlr -> mkNonLocalTyconRefPreResolved x nlr x.LogicalName
+        // Cached on the entity: only the non-local branch, so an entity reached both ways cannot collide.
+        | ERefNonLocal nlr ->
+            match x.entity_nested_ref with
+            | null ->
+                let res = mkNonLocalTyconRefPreResolved x nlr x.LogicalName
+                x.entity_nested_ref <- res
+                res
+            | res -> res
 
     member tcref.RecdFieldRefInNestedTycon tycon (id: Ident) = RecdFieldRef (tcref.NestedTyconRef tycon, id.idText)
 

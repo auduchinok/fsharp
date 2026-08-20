@@ -458,6 +458,10 @@ type Entity =
         /// Used during codegen to hold the ILX representation indicating how to access the type
         mutable entity_il_repr_cache: cache<CompiledTypeRepr> | null
 
+        /// The reference to this entity from its enclosing module or namespace. Name resolution rebuilds
+        /// it for every `open` of that module in every file, and an entity has only one enclosing module.
+        mutable entity_nested_ref: EntityRef | null
+
         mutable entity_opt_data: EntityOptionalData option
     }
 
