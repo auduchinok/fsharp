@@ -204,6 +204,8 @@ type ReaderState =
         inlerefs: InputTable<NonLocalEntityRef>
         itcrefs: EntityRef array
         isimpletys: InputTable<TType>
+        isimpletysWithNull: TType array
+        isimpletysWithoutNull: TType array
         ifile: string
         iILModule: ILModuleDef option // the Abstract IL metadata for the DLL being read
 
@@ -926,7 +928,6 @@ let decode_simpletyp st _ccuTab _stringTab nlerefTab a =
     TType_app(ERefNonLocal(lookup_nleref st nlerefTab a), [], KnownAmbivalentToNull)
 
 let u_encoded_simpletyp st = u_int st
-let u_simpletyp st = lookup_uniq st st.isimpletys (u_int st)
 
 let encode_simpletyp ccuTab stringTab nlerefTab simpleTyTab thisCcu a =
     encode_uniq simpleTyTab (encode_nleref ccuTab stringTab nlerefTab thisCcu a)
@@ -1079,6 +1080,8 @@ let unpickleObjWithDanglingCcus
             itcrefs = [||]
             ipubpaths = new_itbl "ipubpaths (fake)" [||]
             isimpletys = new_itbl "isimpletys (fake)" [||]
+            isimpletysWithNull = [||]
+            isimpletysWithoutNull = [||]
             ifile = file
             iILModule = ilModule
             iilscopes = Dictionary<_, _>()
@@ -1143,6 +1146,8 @@ let unpickleObjWithDanglingCcus
                 inlerefs = nlerefTab
                 itcrefs = Array.zeroCreate nlerefTab.itbl_rows.Length
                 isimpletys = simpletypTab
+                isimpletysWithNull = Array.zeroCreate simpletypTab.itbl_rows.Length
+                isimpletysWithoutNull = Array.zeroCreate simpletypTab.itbl_rows.Length
                 ifile = file
                 iILModule = ilModule
                 iilscopes = Dictionary<_, _>()
@@ -2537,22 +2542,27 @@ let _ =
             TType_tuple(tupInfoRef, l)
         | 1 ->
             let tagB = u_byteB st
-            let sty = u_simpletyp st
+            let idx = u_int st
+            let sty = lookup_uniq st st.isimpletys idx
+
+            let retag (cache: TType array) nullness =
+                let cached = cache[idx]
+
+                if obj.ReferenceEquals(cached, null) then
+                    match sty with
+                    | TType_app(tcref, _, _) ->
+                        let ty = TType_app(tcref, [], nullness)
+                        cache[idx] <- ty
+                        ty
+                    | _ -> ufailwith st "u_ty retag"
+                else
+                    cached
 
             match tagB with
             | 0 -> sty
-            | 9 ->
-                match sty with
-                | TType_app(tcref, _, _) -> TType_app(tcref, [], KnownWithNull)
-                | _ -> ufailwith st "u_ty 9a"
-            | 10 ->
-                match sty with
-                | TType_app(tcref, _, _) -> TType_app(tcref, [], KnownWithoutNull)
-                | _ -> ufailwith st "u_ty 9b"
-            | 11 ->
-                match sty with
-                | TType_app(tcref, _, _) -> TType_app(tcref, [], KnownAmbivalentToNull)
-                | _ -> ufailwith st "u_ty 9c"
+            | 9 -> retag st.isimpletysWithNull KnownWithNull
+            | 10 -> retag st.isimpletysWithoutNull KnownWithoutNull
+            | 11 -> sty
             | b -> ufailwith st (sprintf "u_ty - 1/B, byte = %A" b)
         | 2 ->
             let tagB = u_byteB st
