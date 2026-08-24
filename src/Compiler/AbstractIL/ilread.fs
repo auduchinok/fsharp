@@ -5039,6 +5039,57 @@ let stableFileHeuristicApplies fileName =
        with _ ->
            false
 
+/// Experiment (FSHARP_MAPPED_METADATA=1): hold the metadata chunk in an anonymous memory mapping rather
+/// than a weakly-held byte array.
+///
+/// The weak byte array is re-read when the GC drops it, and on one ReSharper project that is ~960 MB of
+/// re-read per pass, about a third of all allocation - large-object allocations that drive the gen2
+/// collections that drop the weak reference, which causes more re-reads. An anonymous mapping is
+/// page-file backed, so the bytes leave the GC heap entirely; the file stream is closed after the copy,
+/// so unlike CreateFromFile it holds no lock on the assembly.
+let private createMappedChunk (fileName: string) (chunk: (int * int) option) =
+    let bytes =
+        use stream = FileSystem.OpenFileForReadShim(fileName)
+
+        match chunk with
+        | None -> stream.ReadAllBytes()
+        | Some(start, length) -> stream.ReadBytes(start, length)
+
+    let length = int64 bytes.Length
+
+    let mmf =
+        System.IO.MemoryMappedFiles.MemoryMappedFile.CreateNew(
+            null,
+            length,
+            System.IO.MemoryMappedFiles.MemoryMappedFileAccess.ReadWrite,
+            System.IO.MemoryMappedFiles.MemoryMappedFileOptions.None,
+            HandleInheritability.None)
+
+    let accessor = mmf.CreateViewAccessor(0L, length, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.ReadWrite)
+    accessor.WriteArray(0L, bytes, 0, bytes.Length)
+
+    let mutable ptr = NativePtr.nullPtr<byte>
+    accessor.SafeMemoryMappedViewHandle.AcquirePointer(&ptr)
+
+    // Holds the mapping alive for as long as any view over it, and releases the pointer exactly once.
+    let holder =
+        { new obj() with
+            override x.Finalize() = (x :?> IDisposable).Dispose()
+          interface IDisposable with
+              member x.Dispose() =
+                  GC.SuppressFinalize x
+                  accessor.SafeMemoryMappedViewHandle.ReleasePointer()
+                  accessor.Dispose()
+                  mmf.Dispose() }
+
+    RawMemoryFile(fileName, holder, NativePtr.toNativeInt ptr, bytes.Length) :> BinaryFile
+
+let private useMappedMetadata =
+    try
+        not (isNull (Environment.GetEnvironmentVariable "FSHARP_MAPPED_METADATA"))
+    with _ ->
+        false
+
 let createByteFileChunk opts fileName chunk =
     // If we're trying to reduce memory usage then we are willing to go back and re-read the binary, so we can use
     // a weakly-held handle to an array of bytes.
@@ -5046,7 +5097,10 @@ let createByteFileChunk opts fileName chunk =
         opts.reduceMemoryUsage = ReduceMemoryFlag.Yes
         && stableFileHeuristicApplies fileName
     then
-        WeakByteFile(fileName, chunk) :> BinaryFile
+        if useMappedMetadata then
+            createMappedChunk fileName chunk
+        else
+            WeakByteFile(fileName, chunk) :> BinaryFile
     else
         let bytes =
             use stream = FileSystem.OpenFileForReadShim(fileName)
