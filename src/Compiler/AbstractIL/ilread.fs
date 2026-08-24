@@ -5200,7 +5200,7 @@ let OpenILModuleReader fileName opts =
                 // still use an in-memory ByteFile
                 let pefile =
                     if alwaysMemoryMapFSC || stableFileHeuristicApplies fullPath then
-                        let _, pefile = getBinaryFile fullPath false
+                        let _, pefile = getBinaryFile fullPath true
                         pefile
                     else
                         createByteFileChunk opts fullPath None
