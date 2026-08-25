@@ -3245,7 +3245,6 @@ and u_tcaug st =
         tcaug_interfaces = d
         tcaug_super = e
         // pickled type definitions are always closed (i.e. no more intrinsic members allowed)
-        tcaug_closed = true
         tcaug_abstract = g
     }
 
