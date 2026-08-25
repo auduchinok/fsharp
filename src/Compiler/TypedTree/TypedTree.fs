@@ -512,10 +512,6 @@ type EntityFlags(flags: int64) =
                       | false ->                                        0b000100000000000L)
             EntityFlags flags
 
-    /// Indicates no further members can be added to the entity's augmentation, which is true of everything
-    /// imported. Held here rather than in TyconAugmentation so that an imported entity needs no
-    /// augmentation record at all - it is otherwise the only field of one that import ever writes.
-    /// Not pickled: the unpickler sets it, as it previously set the field.
     member x.IsAugmentationClosed                = (flags       &&&     0b001000000000000L) <> 0x0L
 
     member x.WithIsAugmentationClosed =            EntityFlags(flags ||| 0b001000000000000L)
@@ -707,7 +703,7 @@ type Entity =
       /// The methods and properties of the type
       //
       // MUTABILITY; used only during creation and remapping of tycons
-      mutable entity_tycon_tcaug: TyconAugmentation
+      mutable entity_tycon_tcaug: TyconAugmentation | null
 
       /// This field is used when the 'tycon' is really a module definition. It holds statically nested type definitions and nested modules
       //
@@ -900,17 +896,17 @@ type Entity =
 
     /// The logical contents of the entity when it is a type definition.
     member x.TypeContents =
-        // Created on first use. Every entity used to carry one, but an imported type never writes to it -
-        // the one field import set, tcaug_closed, is an entity flag now - and most imported types are
-        // never asked for their contents at all. 26,536 of these existed for 26,795 entities on a
-        // 489-reference project, 88 bytes each.
-        match box x.entity_tycon_tcaug with
+        match x.entity_tycon_tcaug with
         | null ->
-            let fresh = TyconAugmentation.Create()
+            let fresh: TyconAugmentation = TyconAugmentation.Create()
 
-            let prior = System.Threading.Interlocked.CompareExchange(&x.entity_tycon_tcaug, fresh, Unchecked.defaultof<_>)
-            if obj.ReferenceEquals(prior, null) then fresh else prior
-        | _ -> x.entity_tycon_tcaug
+            let prior: TyconAugmentation | null =
+                System.Threading.Interlocked.CompareExchange(&x.entity_tycon_tcaug, fresh, Unchecked.defaultof<_>)
+
+            match prior with
+            | null -> fresh
+            | prior -> prior
+        | tcaug -> tcaug
 
     /// The kind of the type definition - is it a measure definition or a type definition?
     member x.TypeOrMeasureKind =
@@ -1135,7 +1131,7 @@ type Entity =
           entity_range = Unchecked.defaultof<_>
           entity_attribs = Unchecked.defaultof<_>
           entity_tycon_repr= Unchecked.defaultof<_>
-          entity_tycon_tcaug= Unchecked.defaultof<_>
+          entity_tycon_tcaug= null
           entity_modul_type= Unchecked.defaultof<_>
           entity_cpath = Unchecked.defaultof<_>
           entity_il_repr_cache = Unchecked.defaultof<_>
@@ -1205,8 +1201,6 @@ type Entity =
         | TFSharpTyconRepr { fsobjmodel_kind=TFSharpUnion } -> x.entity_flags.IsStructRecordOrUnionType
         | _ -> false
 
-    /// Indicates no further members can be added to this entity's augmentation. True of everything
-    /// imported; set on a locally declared type once its members are established.
     member x.IsAugmentationClosed = x.entity_flags.IsAugmentationClosed
 
     member x.SetAugmentationClosed() = x.entity_flags <- x.entity_flags.WithIsAugmentationClosed
@@ -4123,7 +4117,6 @@ type EntityRef =
     /// it is better to use more specific predicates.
     member x.IsFSharpObjectModelTycon = x.Deref.IsFSharpObjectModelTycon
 
-    /// Indicates no further members can be added to this entity's augmentation
     member x.IsAugmentationClosed = x.Deref.IsAugmentationClosed
 
     member x.SetAugmentationClosed() = x.Deref.SetAugmentationClosed()
@@ -6390,7 +6383,7 @@ type Construct() =
             entity_attribs=WellKnownEntityAttribs.Empty // fetched on demand via est.fs API
             entity_typars= LazyWithContext.NotLazy []
             entity_tycon_repr = repr
-            entity_tycon_tcaug = Unchecked.defaultof<_>
+            entity_tycon_tcaug = null
             entity_modul_type = MaybeLazy.Lazy(InterruptibleLazy(fun _ -> ModuleOrNamespaceType(Namespace true, QueueList.ofList [], QueueList.ofList [])))
             // Generated types get internal accessibility
             entity_cpath = Some cpath
@@ -6415,7 +6408,7 @@ type Construct() =
             entity_flags=EntityFlags(usesPrefixDisplay=false, isModuleOrNamespace=true, preEstablishedHasDefaultCtor=false, hasSelfReferentialCtor=false, isStructRecordOrUnionType=false)
             entity_typars=LazyWithContext.NotLazy []
             entity_tycon_repr = TNoRepr
-            entity_tycon_tcaug=Unchecked.defaultof<_>
+            entity_tycon_tcaug=null
             entity_cpath=cpath
             entity_attribs=WellKnownEntityAttribs.Create(attribs)
             entity_il_repr_cache = null
@@ -6489,7 +6482,7 @@ type Construct() =
             entity_attribs = WellKnownEntityAttribs.Create(attribs)
             entity_logical_name = id.idText
             entity_range = id.idRange
-            entity_tycon_tcaug = Unchecked.defaultof<_>
+            entity_tycon_tcaug = null
             entity_modul_type = MaybeLazy.Strict (Construct.NewEmptyModuleOrNamespaceType ModuleOrType)
             entity_cpath = cpath
             entity_typars = LazyWithContext.NotLazy []
@@ -6530,7 +6523,7 @@ type Construct() =
             entity_attribs=WellKnownEntityAttribs.Empty // fixed up after
             entity_typars=typars
             entity_tycon_repr = TNoRepr
-            entity_tycon_tcaug = Unchecked.defaultof<_>
+            entity_tycon_tcaug = null
             entity_modul_type = mtyp
             entity_cpath = cpath
             entity_il_repr_cache = null

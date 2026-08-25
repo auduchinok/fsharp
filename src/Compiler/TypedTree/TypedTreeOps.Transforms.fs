@@ -983,7 +983,10 @@ module internal Rewriting =
         let attribsR = d.entity_attribs.AsList() |> remapAttribs ctxt tmenvinner
         let tyconReprR = d.entity_tycon_repr |> remapTyconRepr ctxt tmenvinner
         let tyconAbbrevR = d.TypeAbbrev |> Option.map (remapType tmenvinner)
-        let tyconTcaugR = d.entity_tycon_tcaug |> remapTyconAug tmenvinner
+        let tyconTcaugR: TyconAugmentation | null =
+            match d.entity_tycon_tcaug with
+            | null -> null
+            | tcaug -> tcaug |> remapTyconAug tmenvinner
 
         let modulContentsR =
             MaybeLazy.Strict(

@@ -284,6 +284,9 @@ type EntityFlags =
 
     new: flags: int64 -> EntityFlags
 
+    /// Mark the entity's augmentation closed
+    member WithIsAugmentationClosed: EntityFlags
+
     /// Adjust the on-demand analysis about whether the entity is assumed to be a readonly struct
     member WithIsAssumedReadOnly: flag: bool -> EntityFlags
 
@@ -456,7 +459,7 @@ type Entity =
         mutable entity_tycon_repr: TyconRepresentation
 
         /// The methods type properties of the type
-        mutable entity_tycon_tcaug: TyconAugmentation
+        mutable entity_tycon_tcaug: TyconAugmentation | null
 
         /// This field is used when the 'tycon' is really a module definition. It holds statically nested type definitions type nested modules
         mutable entity_modul_type: MaybeLazy<ModuleOrNamespaceType>
