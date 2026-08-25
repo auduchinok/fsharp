@@ -612,13 +612,12 @@ module StructuralUtilities =
             else
                 Stable(h, tokens)
 
-    // Speed up repeated calls by memoizing results for types that yield a stable structure.
-    let private getTypeStructureOfStrippedType =
-        WeakMap.cacheConditionally
-            (function
-            | Stable _ -> true
-            | _ -> false)
-            getTypeStructureOfStrippedTypeUncached
+    // Not memoised. A ConditionalWeakTable keyed on the TType object measured 18415 hits against 17188
+    // adds on FSharp.Common - about one reuse per entry - because the same type structure keeps arriving as
+    // distinct objects. Each miss paid a first-time identity hash, which writes the object header, plus a
+    // table entry, and that costs more than recomputing the structure: dropping it measured -1.1% on the
+    // ReSharper solution and -0.9% on this repo, with no subject regressing.
+    let private getTypeStructureOfStrippedType = getTypeStructureOfStrippedTypeUncached
 
     let tryGetTypeStructureOfStrippedType ty =
         match getTypeStructureOfStrippedType ty with
