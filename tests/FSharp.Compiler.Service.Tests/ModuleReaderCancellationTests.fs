@@ -22,15 +22,24 @@ let private checker = FSharpChecker.Create(useTransparentCompiler = FSharp.Test.
 
 let mutable private cts = new CancellationTokenSource()
 let mutable private wasCancelled = false
+let mutable private readerObservedCancellation = false
 
 let runCancelFirstTime f =
     let mutable requestCount = 0
     fun () ->
         if requestCount = 0 then
             cts.Cancel()
+            // Under the transparent compiler the ambient token belongs to the detached job and is cancelled
+            // only once the requester's cleanup has run, so wait for it instead of racing it.
+            Cancellable.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds 10.) |> ignore
 
         requestCount <- requestCount + 1
-        Cancellable.CheckAndThrow()
+
+        try
+            Cancellable.CheckAndThrow()
+        with :? OperationCanceledException ->
+            readerObservedCancellation <- true
+            reraise ()
 
         f ()
 
@@ -150,6 +159,7 @@ let referenceReaderProject getPreTypeDefs (cancelOnModuleAccess: bool) (options:
 let parseAndCheck path source options =
     cts <- new CancellationTokenSource()
     wasCancelled <- false
+    readerObservedCancellation <- false
 
     try
         let checkFileAsync = checker.ParseAndCheckFileInProject(path, 0, SourceText.ofString source, options)
@@ -203,6 +213,7 @@ let ``Type defs 01 - assembly import`` () =
     // The cancellation happens in side CombineImportedAssembliesTask, so background builder node fails to be evaluated
     parseAndCheck path source options |> ignore
     wasCancelled |> shouldEqual true
+    readerObservedCancellation |> shouldEqual true
 
     // Second request, should succeed, with complete analysis
     match parseAndCheck path source options with
@@ -246,6 +257,7 @@ let ``Type defs 03 - type import`` () =
     // This shouldn't be cached due to InterruptibleLazy
     parseAndCheck path source options |> ignore
     wasCancelled |> shouldEqual true
+    readerObservedCancellation |> shouldEqual true
 
     // Second request, should succeed, with complete analysis
     match parseAndCheck path source options with
@@ -271,6 +283,7 @@ let ``Type defs 04 - ctor import`` () =
     // This shouldn't be cached due to InterruptibleLazy
     parseAndCheck path source options |> ignore
     wasCancelled |> shouldEqual true
+    readerObservedCancellation |> shouldEqual true
 
     // Second request, should succeed, with complete analysis
     match parseAndCheck path source options with
@@ -293,6 +306,7 @@ let ``Module def 01 - assembly import`` () =
     // The cancellation happens in side CombineImportedAssembliesTask, so background builder node fails to be evaluated
     parseAndCheck path source options |> ignore
     wasCancelled |> shouldEqual true
+    readerObservedCancellation |> shouldEqual true
 
     // Second request, should succeed, with complete analysis
     match parseAndCheck path source options with
@@ -436,3 +450,60 @@ let ``Import order - a hand-built namespace tree imports the same`` () =
     let options = referenceReaderProjectWithTypeDefs (mkNamespaceTree 0 orderedTypes) false options
 
     importedTypeOrder options |> shouldEqual expectedOrder
+
+
+let source3 = """
+module Module
+
+let f (x: T) = x
+"""
+
+[<Fact>]
+let ``Shared import - cancelling one request does not fail another`` () =
+    // Two different requests share the import of the referenced assembly. Cancelling the first one while the
+    // reader is inside the import must not cancel the import the second one is waiting for.
+    let readerEntered = new ManualResetEventSlim(false)
+    let releaseReader = new ManualResetEventSlim(false)
+    let mutable readerInvocations = 0
+    let mutable tokenCancelledWhenReleased = false
+
+    let getPreTypeDefs typeData = fun _ ->
+        readerInvocations <- readerInvocations + 1
+        readerEntered.Set()
+        releaseReader.Wait(TimeSpan.FromSeconds 10.) |> ignore
+        tokenCancelledWhenReleased <- Cancellable.Token.IsCancellationRequested
+        Cancellable.CheckAndThrow()
+        createPreTypeDefs typeData
+
+    let typeDefs = getPreTypeDefs [ { Name = "T"; Namespace = []; HasCtor = false; CancelOnImport = false } ]
+    let path, options = mkTestFileAndOptions [||]
+    let options = referenceReaderProject typeDefs false options
+
+    use ctsA = new CancellationTokenSource()
+    let requestA =
+        Async.StartAsTask(
+            checker.ParseAndCheckFileInProject(path, 0, SourceText.ofString source3, options) |> Async.Ignore,
+            cancellationToken = ctsA.Token)
+
+    readerEntered.Wait(TimeSpan.FromSeconds 10.) |> shouldEqual true
+
+    let requestB = Async.StartAsTask(checker.ParseAndCheckProject options)
+    // Let the second request reach the shared import.
+    Thread.Sleep 500
+
+    ctsA.Cancel()
+    (try requestA.Wait() with _ -> ())
+    requestA.IsCanceled |> shouldEqual true
+
+    releaseReader.Set()
+
+    let results = requestB.Result
+
+    results.Diagnostics
+    |> Array.filter (fun d -> d.Severity = FSharpDiagnosticSeverity.Error)
+    |> Array.map _.Message
+    |> shouldEqual [||]
+
+    // Whatever token the reader observed on its last run, it was a live one.
+    tokenCancelledWhenReleased |> shouldEqual false
+    (readerInvocations > 0) |> shouldEqual true

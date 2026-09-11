@@ -1623,8 +1623,6 @@ type internal TransparentCompiler
         caches.ParseAndCheckFileInProject.Get(
             projectSnapshot.FileKeyWithExtraFileSnapshotVersion fileName,
             async {
-                use! _holder = Cancellable.UseToken()
-
                 use _ =
                     Activity.start "ComputeParseAndCheckFileInProject" [| Activity.Tags.fileName, fileName |> Path.GetFileName |> (!!) |]
 
@@ -1894,8 +1892,6 @@ type internal TransparentCompiler
                             Activity.Tags.project, projectSnapshot.ProjectFileName |> Path.GetFileName |> (!!)
                         |]
 
-                use! _holder = Cancellable.UseToken()
-
                 try
 
                     let availableOnDiskModifiedTime =
@@ -1942,8 +1938,6 @@ type internal TransparentCompiler
         caches.ParseAndCheckProject.Get(
             projectSnapshot.FullKey,
             async {
-                use! _holder = Cancellable.UseToken()
-
                 match! ComputeBootstrapInfo projectSnapshot with
                 | None, creationDiags ->
                     return FSharpCheckProjectResults(projectSnapshot.ProjectFileName, None, keepAssemblyContents, creationDiags, None)
@@ -2016,8 +2010,6 @@ type internal TransparentCompiler
 
     let tryGetSink (fileName: string) (projectSnapshot: ProjectSnapshot) =
         async {
-            use! _holder = Cancellable.UseToken()
-
             match! ComputeBootstrapInfo projectSnapshot with
             | None, _ -> return None
             | Some bootstrapInfo, _creationDiags ->
@@ -2028,6 +2020,7 @@ type internal TransparentCompiler
 
                 return tcInfo.sink |> List.tryHead |> Option.map (fun sink -> sink, bootstrapInfo)
         }
+        |> Cancellable.WithToken
 
     let ComputeSemanticClassification (fileName: string, projectSnapshot: ProjectSnapshot) =
         caches.SemanticClassification.Get(

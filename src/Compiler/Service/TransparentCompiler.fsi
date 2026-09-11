@@ -2,6 +2,7 @@ namespace FSharp.Compiler.CodeAnalysis.TransparentCompiler
 
 open Internal.Utilities.Collections
 
+open FSharp.Compiler.AbstractIL.IL
 open FSharp.Compiler.AbstractIL.ILBinaryReader
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.CompilerConfig
@@ -152,7 +153,8 @@ type internal CompilerCaches =
 
     member ItemKeyStore: AsyncMemoize<string * FSharpProjectIdentifier, string, ItemKeyStore option>
 
-    member ParseAndCheckAllFilesInProject: AsyncMemoizeDisabled<obj, obj, obj>
+    member ParseAndCheckAllFilesInProject:
+        AsyncMemoizeDisabled<obj, obj, (int * PartialResult) list * TcInfo * PhasedDiagnostic array>
 
     member ParseAndCheckFileInProject:
         AsyncMemoize<string * FSharpProjectIdentifier, string * string, FSharpParseFileResults * FSharpCheckFileAnswer>
@@ -163,7 +165,12 @@ type internal CompilerCaches =
 
     member ParseFileWithoutProject: AsyncMemoize<string, string, FSharpParseFileResults>
 
-    member ProjectExtras: AsyncMemoizeDisabled<obj, obj, obj>
+    member ProjectExtras:
+        AsyncMemoizeDisabled<
+            obj,
+            obj,
+            TcInfo * ILAssemblyRef * ProjectAssemblyDataResult * CheckedImplFile list * PhasedDiagnostic array
+         >
 
     member SemanticClassification:
         AsyncMemoize<string * FSharpProjectIdentifier, string, SemanticClassificationView option>
@@ -174,7 +181,7 @@ type internal CompilerCaches =
 
     member ScriptClosure: AsyncMemoize<string * FSharpProjectIdentifier, string, LoadClosure>
 
-    member TcLastFile: AsyncMemoizeDisabled<obj, obj, obj>
+    member TcLastFile: AsyncMemoizeDisabled<obj, obj, PartialResult * TcInfo>
 
 type internal TransparentCompiler =
     interface IBackgroundCompiler

@@ -6,6 +6,7 @@ open Internal.Utilities.Collections
 open System.Threading.Tasks
 open System.Diagnostics
 
+open FSharp.Compiler
 open FSharp.Compiler.DiagnosticsLogger
 open FSharp.Compiler.Diagnostics
 
@@ -270,6 +271,91 @@ let ``Job keeps running if only one requestor cancels`` () =
         Started, key
         Requested, key
         Finished, key ]
+
+/// A job that records the ambient token it observes and then blocks until released.
+type ObservingJob =
+    { Computation: int -> Async<int>
+      JobCanComplete: ManualResetEvent
+      /// Waits until the job has started and returns the token it observed.
+      ObservedToken: unit -> CancellationToken }
+
+let observingJob () =
+    let tokenObserved = new ManualResetEvent(false)
+    let jobCanComplete = new ManualResetEvent(false)
+    let observed = ref CancellationToken.None
+
+    let computation key = async {
+        observed.Value <- Cancellable.Token
+        tokenObserved.Set() |> ignore
+        do! awaitHandle jobCanComplete
+        return key * 2
+    }
+
+    let observedToken () =
+        // A bounded wait: without a token installed in the job, reading it throws before the gate is signalled.
+        Assert.True(tokenObserved.WaitOne(TimeSpan.FromSeconds 10.), "The job did not observe a token")
+        observed.Value
+
+    { Computation = computation
+      JobCanComplete = jobCanComplete
+      ObservedToken = observedToken }
+
+[<Fact>]
+let ``Shared job observes its own cancellation token, not the first requestor's`` () =
+
+    let job = observingJob ()
+
+    let memoize = AsyncMemoize<_, int, _>()
+    let events = observe memoize
+
+    let key = 1
+
+    use cts1 = new CancellationTokenSource()
+
+    // The first requestor has its own ambient token installed, like any caller running inside FCS.
+    let task1 =
+        Async.StartAsTask(
+            memoize.Get(wrapKey key, job.Computation key) |> Cancellable.WithToken,
+            cancellationToken = cts1.Token)
+
+    let observedToken = job.ObservedToken()
+
+    let task2 = Async.StartAsTask(memoize.Get(wrapKey key, job.Computation key))
+
+    waitUntil events (countOf Requested >> (=) 2)
+
+    cts1.Cancel()
+
+    assertTaskCanceled task1
+
+    Assert.NotEqual(cts1.Token, observedToken)
+    Assert.False(observedToken.IsCancellationRequested)
+
+    job.JobCanComplete.Set() |> ignore
+
+    Assert.Equal(2, task2.Result)
+
+[<Fact>]
+let ``Cancelling the last requestor cancels the token observed by the job`` () =
+
+    let job = observingJob ()
+
+    let memoize = AsyncMemoize<_, int, _>()
+    let events = observe memoize
+
+    use cts = new CancellationTokenSource()
+
+    let task = Async.StartAsTask(memoize.Get(wrapKey 1, job.Computation 1), cancellationToken = cts.Token)
+
+    let observedToken = job.ObservedToken()
+
+    cts.Cancel()
+
+    assertTaskCanceled task
+
+    waitUntil events (received Canceled)
+
+    Assert.True(observedToken.IsCancellationRequested)
 
 type ExpectedException() =
     inherit Exception()

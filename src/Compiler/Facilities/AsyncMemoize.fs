@@ -6,6 +6,7 @@ open System.Threading
 open System.Threading.Tasks
 open System.Runtime.CompilerServices
 
+open FSharp.Compiler
 open FSharp.Compiler.DiagnosticsLogger
 
 type AsyncLazyState<'t> =
@@ -77,9 +78,12 @@ type AsyncLazy<'t> private (initial: AsyncLazyState<'t>, cancelUnawaited: bool, 
         | Initial computation ->
             let cts = new CancellationTokenSource()
 
+            // The job is detached from its requesters and may be shared by several of them, so the ambient token
+            // observed by nested code and host callbacks must be the one cancelled when the last awaiter leaves,
+            // not whatever the first requester had in its execution context.
             let work =
                 Async
-                    .StartAsTask(computation, cancellationToken = cts.Token)
+                    .StartAsTask(Cancellable.WithToken computation, cancellationToken = cts.Token)
                     .ContinueWith(onComplete, TaskContinuationOptions.NotOnCanceled)
 
             Running(computation, work, cts, 1), detachable work
@@ -361,8 +365,9 @@ type internal AsyncMemoizeDisabled<'TKey, 'TVersion, 'TValue when 'TKey: equalit
 
     let mutable requests = 0
 
-    member _.Get(_key: ICacheKey<_, _>, computation) =
+    member _.Get(_key: ICacheKey<_, _>, computation: Async<'TValue>) =
         Interlocked.Increment &requests |> ignore
-        computation
+        // Keep the same guarantee as a real job: the computation runs under its own ambient token.
+        Cancellable.WithToken computation
 
     member _.DebuggerDisplay = $"(disabled) requests: {requests}"

@@ -76,4 +76,4 @@ type internal AsyncMemoizeDisabled<'TKey, 'TVersion, 'TValue when 'TKey: equalit
         ?keepStrongly: obj * ?keepWeakly: obj * ?name: string * ?cancelDuplicateRunningJobs: bool ->
             AsyncMemoizeDisabled<'TKey, 'TVersion, 'TValue>
 
-    member Get: _key: ICacheKey<'a, 'b> * computation: 'c -> 'c
+    member Get: _key: ICacheKey<'a, 'b> * computation: Async<'TValue> -> Async<'TValue>

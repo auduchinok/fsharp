@@ -484,8 +484,6 @@ type internal BackgroundCompiler
 
     let getOrCreateBuilder (options, userOpName) : Async<IncrementalBuilder option * FSharpDiagnostic[]> =
         async {
-            use! _holder = Cancellable.UseToken()
-
             match tryGetBuilder options with
             | Some getBuilder ->
                 match! getBuilder with
@@ -505,6 +503,7 @@ type internal BackgroundCompiler
                     return! createAndGetBuilder (options, userOpName)
             | _ -> return! createAndGetBuilder (options, userOpName)
         }
+        |> Cancellable.WithToken
 
     let getSimilarOrCreateBuilder (options, userOpName) =
         match tryGetSimilarBuilder options with

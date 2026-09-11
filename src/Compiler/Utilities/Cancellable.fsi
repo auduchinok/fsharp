@@ -7,6 +7,9 @@ open System.Threading
 type Cancellable =
     static member internal UseToken: unit -> Async<IDisposable>
 
+    /// Runs the computation with its own cancellation token installed as the ambient token.
+    static member internal WithToken: computation: Async<'T> -> Async<'T>
+
     static member HasCancellationToken: bool
     static member Token: CancellationToken
 

@@ -34,6 +34,12 @@ type Cancellable =
             return Cancellable.UsingToken ct
         }
 
+    static member WithToken(computation: Async<'T>) =
+        async {
+            use! _holder = Cancellable.UseToken()
+            return! computation
+        }
+
     static member UsingToken(ct) =
         let oldCt = tokenHolder.Value
         tokenHolder.Value <- ValueSome ct
@@ -100,8 +106,6 @@ module Cancellable =
 
     let toAsync c =
         async {
-            use! _holder = Cancellable.UseToken()
-
             let! ct = Async.CancellationToken
 
             return!
@@ -110,6 +114,7 @@ module Cancellable =
                     | ValueOrCancelled.Value v -> cont v
                     | ValueOrCancelled.Cancelled ce -> ccont ce)
         }
+        |> Cancellable.WithToken
 
     let token () = Cancellable(ValueOrCancelled.Value)
 
